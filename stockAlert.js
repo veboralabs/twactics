@@ -30,85 +30,9 @@
 
   let blinkInterval = null;
   let audioCtx = null;
-
-  const directionMessage =
-    'Premium Exchange Alert\n\n' +
-    'Choose when the alert should trigger:\n\n' +
-    'increase = alert when a resource value goes up\n' +
-    'decrease = alert when a resource value goes down\n\n' +
-    'Type: increase or decrease';
-
-  const modeInput = prompt(directionMessage, "increase");
-
-  if (!modeInput) {
-    console.log("Premium Exchange Alert cancelled");
-    window.ppAlertLoaded = false;
-    return;
-  }
-
-  const alertDirection = modeInput.toLowerCase().trim();
-
-  if (alertDirection !== "increase" && alertDirection !== "decrease") {
-    alert(
-      'Invalid choice.\n\n' +
-      'Use:\n' +
-      'increase = alert on increase\n' +
-      'decrease = alert on decrease'
-    );
-    window.ppAlertLoaded = false;
-    return;
-  }
-
-  const thresholdMessage =
-    'Threshold setting\n\n' +
-    'Choose the minimum change required before an alert is triggered.\n\n' +
-    'Example:\n' +
-    '500 = alert when the change reaches at least 500\n' +
-    '1000 = alert when the change reaches at least 1000\n\n' +
-    'Enter a number:';
-
-  const thresholdInput = prompt(thresholdMessage, "500");
-  const threshold = parseInt(thresholdInput, 10);
-
-  if (isNaN(threshold) || threshold <= 0) {
-    alert(
-      'Invalid threshold.\n\n' +
-      'Please enter a number greater than 0.\n' +
-      'Example: 500'
-    );
-    window.ppAlertLoaded = false;
-    return;
-  }
-
-  const alertTypeMessage =
-    'Alert type\n\n' +
-    'Choose how alerts should behave:\n\n' +
-    'single = only 1 alert per update if the change is at least the threshold\n' +
-    'Example: threshold 500, value goes from 1000 to 2200 = 1 alert\n\n' +
-    'step = alert for every full threshold step passed\n' +
-    'Example: threshold 500, value goes from 1000 to 2200 = 2 alerts\n\n' +
-    'Type: single or step';
-
-  const alertTypeInput = prompt(alertTypeMessage, "single");
-
-  if (!alertTypeInput) {
-    console.log("Premium Exchange Alert cancelled");
-    window.ppAlertLoaded = false;
-    return;
-  }
-
-  const alertType = alertTypeInput.toLowerCase().trim();
-
-  if (alertType !== "step" && alertType !== "single") {
-    alert(
-      'Invalid alert type.\n\n' +
-      'Use:\n' +
-      'single = one alert per update\n' +
-      'step = one alert for each threshold step reached'
-    );
-    window.ppAlertLoaded = false;
-    return;
-  }
+  let alertDirection = "increase";
+  let alertType = "single";
+  let threshold = 500;
 
   function getAudioContext() {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -169,14 +93,16 @@
     }, 1000);
   }
 
-  ids.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      const value = parseInt(el.textContent.trim(), 10) || 0;
-      previousValues[id] = value;
-      alertBaseValues[id] = value;
-    }
-  });
+  function initValues() {
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        const value = parseInt(el.textContent.trim(), 10) || 0;
+        previousValues[id] = value;
+        alertBaseValues[id] = value;
+      }
+    });
+  }
 
   function checkChange(id, el) {
     const newValue = parseInt(el.textContent.trim(), 10) || 0;
@@ -236,27 +162,217 @@
     previousValues[id] = newValue;
   }
 
-  ids.forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
+  function startObservers() {
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
 
-    const observer = new MutationObserver(() => {
-      checkChange(id, el);
+      const observer = new MutationObserver(() => {
+        checkChange(id, el);
+      });
+
+      observer.observe(el, {
+        childList: true,
+        subtree: true,
+        characterData: true
+      });
     });
 
-    observer.observe(el, {
-      childList: true,
-      subtree: true,
-      characterData: true
-    });
-  });
+    console.log(
+      "Premium Exchange Alert active | direction: " +
+      alertDirection +
+      " | threshold: " +
+      threshold +
+      " | type: " +
+      alertType
+    );
+  }
 
-  console.log(
-    "Premium Exchange Alert active | direction: " +
-    alertDirection +
-    " | threshold: " +
-    threshold +
-    " | type: " +
-    alertType
-  );
+  function createButton(label, selected, onClick) {
+    const btn = document.createElement("button");
+    btn.textContent = label;
+    btn.type = "button";
+    btn.style.padding = "8px 12px";
+    btn.style.marginRight = "8px";
+    btn.style.marginBottom = "8px";
+    btn.style.border = "1px solid #7d510f";
+    btn.style.background = selected ? "#cfa95e" : "#f4e4bc";
+    btn.style.color = "#2f1b00";
+    btn.style.cursor = "pointer";
+    btn.style.borderRadius = "4px";
+    btn.style.fontWeight = "bold";
+    btn.addEventListener("click", onClick);
+    return btn;
+  }
+
+  function renderDialog() {
+    const existing = document.getElementById("pp-alert-dialog-overlay");
+    if (existing) existing.remove();
+
+    const overlay = document.createElement("div");
+    overlay.id = "pp-alert-dialog-overlay";
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.background = "rgba(0,0,0,0.45)";
+    overlay.style.zIndex = "999999";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+
+    const box = document.createElement("div");
+    box.style.width = "460px";
+    box.style.maxWidth = "90vw";
+    box.style.background = "#f4e4bc";
+    box.style.border = "2px solid #7d510f";
+    box.style.borderRadius = "6px";
+    box.style.boxShadow = "0 8px 24px rgba(0,0,0,0.35)";
+    box.style.padding = "18px";
+    box.style.color = "#2f1b00";
+    box.style.fontFamily = "Verdana, Arial, sans-serif";
+    box.style.fontSize = "13px";
+
+    const title = document.createElement("div");
+    title.textContent = "Premium Exchange Alert";
+    title.style.fontSize = "18px";
+    title.style.fontWeight = "bold";
+    title.style.marginBottom = "14px";
+
+    const desc = document.createElement("div");
+    desc.textContent = "Choose how the alert should work.";
+    desc.style.marginBottom = "16px";
+
+    const directionLabel = document.createElement("div");
+    directionLabel.textContent = "1. Alert direction";
+    directionLabel.style.fontWeight = "bold";
+    directionLabel.style.marginBottom = "6px";
+
+    const directionHelp = document.createElement("div");
+    directionHelp.textContent = "Increase = alert when value goes up. Decrease = alert when value goes down.";
+    directionHelp.style.marginBottom = "8px";
+
+    const directionWrap = document.createElement("div");
+
+    const typeLabel = document.createElement("div");
+    typeLabel.textContent = "2. Alert type";
+    typeLabel.style.fontWeight = "bold";
+    typeLabel.style.marginTop = "8px";
+    typeLabel.style.marginBottom = "6px";
+
+    const typeHelp = document.createElement("div");
+    typeHelp.textContent = "Single = one alert per update if threshold is reached. Step = one alert for every full threshold step passed.";
+    typeHelp.style.marginBottom = "8px";
+
+    const typeWrap = document.createElement("div");
+
+    const thresholdLabel = document.createElement("div");
+    thresholdLabel.textContent = "3. Threshold";
+    thresholdLabel.style.fontWeight = "bold";
+    thresholdLabel.style.marginTop = "8px";
+    thresholdLabel.style.marginBottom = "6px";
+
+    const thresholdHelp = document.createElement("div");
+    thresholdHelp.textContent = "Example: 500 means the alert reacts when the value changes by at least 500.";
+    thresholdHelp.style.marginBottom = "8px";
+
+    const thresholdInput = document.createElement("input");
+    thresholdInput.type = "number";
+    thresholdInput.min = "1";
+    thresholdInput.value = String(threshold);
+    thresholdInput.style.width = "120px";
+    thresholdInput.style.padding = "6px 8px";
+    thresholdInput.style.border = "1px solid #7d510f";
+    thresholdInput.style.borderRadius = "4px";
+    thresholdInput.style.background = "#fffaf0";
+
+    const footer = document.createElement("div");
+    footer.style.marginTop = "18px";
+    footer.style.display = "flex";
+    footer.style.justifyContent = "flex-end";
+    footer.style.gap = "10px";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.type = "button";
+    cancelBtn.style.padding = "8px 14px";
+    cancelBtn.style.border = "1px solid #7d510f";
+    cancelBtn.style.background = "#e6d3a5";
+    cancelBtn.style.cursor = "pointer";
+    cancelBtn.style.borderRadius = "4px";
+    cancelBtn.addEventListener("click", () => {
+      overlay.remove();
+      window.ppAlertLoaded = false;
+      console.log("Premium Exchange Alert cancelled");
+    });
+
+    const startBtn = document.createElement("button");
+    startBtn.textContent = "Start alert";
+    startBtn.type = "button";
+    startBtn.style.padding = "8px 14px";
+    startBtn.style.border = "1px solid #7d510f";
+    startBtn.style.background = "#cfa95e";
+    startBtn.style.fontWeight = "bold";
+    startBtn.style.cursor = "pointer";
+    startBtn.style.borderRadius = "4px";
+    startBtn.addEventListener("click", () => {
+      const parsedThreshold = parseInt(thresholdInput.value, 10);
+
+      if (isNaN(parsedThreshold) || parsedThreshold <= 0) {
+        alert("Please enter a threshold greater than 0.");
+        return;
+      }
+
+      threshold = parsedThreshold;
+      overlay.remove();
+      initValues();
+      startObservers();
+    });
+
+    function refreshDirectionButtons() {
+      directionWrap.innerHTML = "";
+      directionWrap.appendChild(createButton("Increase", alertDirection === "increase", () => {
+        alertDirection = "increase";
+        refreshDirectionButtons();
+      }));
+      directionWrap.appendChild(createButton("Decrease", alertDirection === "decrease", () => {
+        alertDirection = "decrease";
+        refreshDirectionButtons();
+      }));
+    }
+
+    function refreshTypeButtons() {
+      typeWrap.innerHTML = "";
+      typeWrap.appendChild(createButton("Single", alertType === "single", () => {
+        alertType = "single";
+        refreshTypeButtons();
+      }));
+      typeWrap.appendChild(createButton("Step", alertType === "step", () => {
+        alertType = "step";
+        refreshTypeButtons();
+      }));
+    }
+
+    refreshDirectionButtons();
+    refreshTypeButtons();
+
+    footer.appendChild(cancelBtn);
+    footer.appendChild(startBtn);
+
+    box.appendChild(title);
+    box.appendChild(desc);
+    box.appendChild(directionLabel);
+    box.appendChild(directionHelp);
+    box.appendChild(directionWrap);
+    box.appendChild(typeLabel);
+    box.appendChild(typeHelp);
+    box.appendChild(typeWrap);
+    box.appendChild(thresholdLabel);
+    box.appendChild(thresholdHelp);
+    box.appendChild(thresholdInput);
+    box.appendChild(footer);
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+  }
+
+  renderDialog();
 })();
