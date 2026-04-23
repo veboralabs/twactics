@@ -9,16 +9,47 @@ if (window.ppAlertLoaded) {
     "premium_exchange_stock_iron"
   ];
 
-  const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
   const previousValues = {};
   const originalTitle = document.title;
   let blinkInterval = null;
+  let audioCtx = null;
+
+  function getAudioContext() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return null;
+
+    if (!audioCtx) {
+      audioCtx = new AudioContextClass();
+    }
+
+    return audioCtx;
+  }
 
   function playBeep() {
-    audio.currentTime = 0;
-    audio.play().catch(err => {
-      console.log("Audio error:", err);
-    });
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+
+      if (ctx.state === "suspended") {
+        ctx.resume();
+      }
+
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(800, ctx.currentTime);
+      gainNode.gain.setValueAtTime(0.08, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.2);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.2);
+    } catch (err) {
+      console.log("Beep error:", err);
+    }
   }
 
   function startTitleBlink() {
