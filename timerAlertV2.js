@@ -60,16 +60,16 @@
 
   function playBeepGroup(count, startDelay) {
     for (let i = 0; i < count; i++) {
-      soundTimeouts.push(setTimeout(playBeep, startDelay + i * 120));
+      soundTimeouts.push(setTimeout(playBeep, startDelay + i * 140));
     }
   }
 
   function playAlarmSequence() {
-    // 3 beeps, wait 2s, 3 beeps, wait 2s, 2 beeps, wait 2s, 2 beeps
+    // 3 beeps, wait 2s, 3 beeps, wait 2s, 3 beeps, wait 2s, 3 beeps
     playBeepGroup(3, 0);
     playBeepGroup(3, 2900);
-    playBeepGroup(2, 5800);
-    playBeepGroup(2, 8400);
+    playBeepGroup(3, 5800);
+    playBeepGroup(3, 8400);
   }
 
   function startTitleBlink() {
