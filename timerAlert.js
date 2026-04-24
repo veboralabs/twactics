@@ -60,7 +60,7 @@
 
   function playBeepGroup(count, startDelay) {
     for (let i = 0; i < count; i++) {
-      soundTimeouts.push(setTimeout(playBeep, startDelay + i * 300));
+      soundTimeouts.push(setTimeout(playBeep, startDelay + i * 120));
     }
   }
 
