@@ -339,24 +339,24 @@
     content.appendChild(timeInput);
     content.appendChild(countdown);
     content.appendChild(status);
-    const footer = document.createElement("div");
-footer.style.marginTop = "14px";
-footer.style.textAlign = "center";
-footer.style.fontSize = "11px";
-footer.style.opacity = "0.8";
-
-const link = document.createElement("a");
-link.href = "https://twactics.com";
-link.target = "_blank";
-link.textContent = "Twactics";
-link.style.color = "#2f1b00";
-link.style.textDecoration = "underline";
-
-footer.appendChild(document.createTextNode("Created by "));
-footer.appendChild(link);
-
-content.appendChild(footer);
     content.appendChild(buttons);
+    const footer = document.createElement("div");
+    footer.style.marginTop = "14px";
+    footer.style.textAlign = "center";
+    footer.style.fontSize = "11px";
+    footer.style.opacity = "0.8";
+    
+    const link = document.createElement("a");
+    link.href = "https://twactics.com";
+    link.target = "_blank";
+    link.textContent = "Twactics";
+    link.style.color = "#2f1b00";
+    link.style.textDecoration = "underline";
+    
+    footer.appendChild(document.createTextNode("Created by "));
+    footer.appendChild(link);
+    
+    content.appendChild(footer);
 
     box.appendChild(header);
     box.appendChild(content);
