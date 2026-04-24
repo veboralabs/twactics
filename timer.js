@@ -19,15 +19,13 @@
   let audioCtx = null;
   let originalTitle = document.title;
   let endTime = null;
+  let tabAlertText = "TIMER DONE";
 
   function getAudioContext() {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) return null;
 
-    if (!audioCtx) {
-      audioCtx = new AudioContextClass();
-    }
-
+    if (!audioCtx) audioCtx = new AudioContextClass();
     return audioCtx;
   }
 
@@ -36,9 +34,7 @@
       const ctx = getAudioContext();
       if (!ctx) return;
 
-      if (ctx.state === "suspended") {
-        ctx.resume();
-      }
+      if (ctx.state === "suspended") ctx.resume();
 
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -65,7 +61,6 @@
   }
 
   function playAlarmSequence() {
-    // 3 beeps, wait 2s, 3 beeps, wait 2s, 3 beeps, wait 2s, 3 beeps
     playBeepGroup(3, 0);
     playBeepGroup(3, 2900);
     playBeepGroup(3, 5800);
@@ -77,7 +72,7 @@
 
     let toggle = false;
     blinkInterval = setInterval(() => {
-      document.title = toggle ? "TIMER DONE" : originalTitle;
+      document.title = toggle ? tabAlertText : originalTitle;
       toggle = !toggle;
     }, 800);
   }
@@ -133,9 +128,7 @@
     target.setSeconds(parts[2] ? parseInt(parts[2], 10) || 0 : 0);
     target.setMilliseconds(0);
 
-    if (target <= now) {
-      target.setDate(target.getDate() + 1);
-    }
+    if (target <= now) target.setDate(target.getDate() + 1);
 
     return target.getTime() - now.getTime();
   }
@@ -246,6 +239,29 @@
     timeInput.style.background = "#fffaf0";
     timeInput.style.marginBottom = "12px";
 
+    const tabTextLabel = document.createElement("div");
+    tabTextLabel.textContent = "Tab text alert";
+    tabTextLabel.style.fontWeight = "bold";
+    tabTextLabel.style.marginBottom = "5px";
+
+    const tabTextInput = document.createElement("input");
+    tabTextInput.type = "text";
+    tabTextInput.maxLength = 30;
+    tabTextInput.placeholder = "TIMER DONE";
+    tabTextInput.style.width = "100%";
+    tabTextInput.style.boxSizing = "border-box";
+    tabTextInput.style.padding = "6px";
+    tabTextInput.style.border = "1px solid #7d510f";
+    tabTextInput.style.borderRadius = "4px";
+    tabTextInput.style.background = "#fffaf0";
+
+    const tabTextHelp = document.createElement("div");
+    tabTextHelp.textContent = "This text will blink in the browser tab when the timer is done. Max 30 characters.";
+    tabTextHelp.style.fontSize = "11px";
+    tabTextHelp.style.opacity = "0.75";
+    tabTextHelp.style.marginTop = "4px";
+    tabTextHelp.style.marginBottom = "12px";
+
     const countdown = document.createElement("div");
     countdown.textContent = "00:00:00";
     countdown.style.fontSize = "30px";
@@ -303,6 +319,9 @@
         return;
       }
 
+      const customTabText = tabTextInput.value.trim();
+      tabAlertText = customTabText ? customTabText.substring(0, 30) : "TIMER DONE";
+
       if (timerInterval) clearInterval(timerInterval);
 
       endTime = Date.now() + durationMs;
@@ -337,9 +356,13 @@
     content.appendChild(durationWrap);
     content.appendChild(specificLabel);
     content.appendChild(timeInput);
+    content.appendChild(tabTextLabel);
+    content.appendChild(tabTextInput);
+    content.appendChild(tabTextHelp);
     content.appendChild(countdown);
     content.appendChild(status);
     content.appendChild(buttons);
+
     const footer = document.createElement("div");
     footer.style.marginTop = "16px";
     footer.style.display = "flex";
@@ -347,32 +370,29 @@
     footer.style.alignItems = "center";
     footer.style.fontSize = "11px";
     footer.style.opacity = "0.8";
-    
-    // LEFT: Send feedback
+
     const feedbackLink = document.createElement("a");
     feedbackLink.href = "https://twactics.com/scripts/timer";
     feedbackLink.target = "_blank";
     feedbackLink.textContent = "Send feedback";
     feedbackLink.style.color = "#2f1b00";
     feedbackLink.style.textDecoration = "underline";
-    
-    // RIGHT: Created by Twactics
+
     const createdBy = document.createElement("div");
-    
+
     const twacticsLink = document.createElement("a");
     twacticsLink.href = "https://twactics.com";
     twacticsLink.target = "_blank";
     twacticsLink.textContent = "Twactics";
     twacticsLink.style.color = "#2f1b00";
     twacticsLink.style.textDecoration = "underline";
-    
+
     createdBy.appendChild(document.createTextNode("Created by "));
     createdBy.appendChild(twacticsLink);
-    
-    // Append
+
     footer.appendChild(feedbackLink);
     footer.appendChild(createdBy);
-    
+
     content.appendChild(footer);
 
     box.appendChild(header);
