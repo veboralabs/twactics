@@ -820,10 +820,14 @@
 
       .twsh-grid {
         display: grid;
-        grid-template-columns: 1.2fr repeat(4, 62px);
+        grid-template-columns: 104px 44px 44px 44px 44px;
         gap: 5px;
         align-items: end;
         margin-bottom: 6px;
+      }
+      
+      .twsh-field-date {
+        min-width: 104px;
       }
 
       .twsh-field {
@@ -984,108 +988,197 @@
       }
 
       @media (max-width: 700px) {
-        #twactics-snipe-helper {
-          max-width: 100%;
-          overflow: hidden;
-        }
-
-        .twsh-grid {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          grid-template-areas:
-            "date date date"
-            "hh mm ss"
-            "ms ms ms";
-          gap: 8px;
-        }
-
-        .twsh-field-date {
-          grid-area: date;
-        }
-
-        .twsh-field-hh {
-          grid-area: hh;
-        }
-
-        .twsh-field-mm {
-          grid-area: mm;
-        }
-
-        .twsh-field-ss {
-          grid-area: ss;
-        }
-
-        .twsh-field-ms {
-          grid-area: ms;
-        }
-
-        .twsh-input {
-          width: 100%;
-          min-width: 0;
-          font-size: 16px;
-          padding: 6px;
-        }
-
-        .twsh-options {
-          display: block;
-        }
-
-        .twsh-options label {
-          margin-bottom: 8px;
-        }
-
-        .twsh-options input[type="number"] {
-          width: 100%;
-          font-size: 16px;
-          padding: 6px;
-          margin-top: 3px;
-        }
-
-        .twsh-result {
-          padding: 8px;
-        }
-
-        .twsh-result-row {
-          display: block;
-          margin-bottom: 8px;
-        }
-
-        .twsh-result-row:last-child {
-          margin-bottom: 0;
-        }
-
-        .twsh-result-row strong {
-          display: block;
-          margin-bottom: 2px;
-        }
-
-        .twsh-result-row span {
-          display: block;
-          text-align: right;
-          font-size: 15px;
-          line-height: 1.35;
-        }
-
-        .twsh-buttons {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-
-        .twsh-buttons .btn {
-          width: 100%;
-          box-sizing: border-box;
-        }
-
-        .twsh-external-commands {
-          max-width: 100%;
-          overflow-x: auto;
-        }
-
-        .twsh-command-table {
-          min-width: 520px;
-        }
+      #twactics-snipe-helper {
+        max-width: 100%;
+        overflow: hidden;
+        font-size: 11px;
+        padding: 7px;
       }
+    
+      .twsh-title {
+        font-size: 14px;
+        margin-bottom: 5px;
+      }
+    
+      .twsh-progress {
+        height: 20px;
+        margin-bottom: 7px;
+      }
+    
+      .twsh-current-time {
+        line-height: 20px;
+        font-size: 12px;
+      }
+    
+      .twsh-grid {
+        display: grid;
+        grid-template-columns: 70px 70px 70px;
+        grid-template-areas:
+          "date date ."
+          "hh mm ss"
+          "ms ms .";
+        gap: 6px;
+        align-items: end;
+      }
+    
+      .twsh-field-date {
+        grid-area: date;
+        max-width: 145px;
+      }
+    
+      .twsh-field-hh {
+        grid-area: hh;
+      }
+    
+      .twsh-field-mm {
+        grid-area: mm;
+      }
+    
+      .twsh-field-ss {
+        grid-area: ss;
+      }
+    
+      .twsh-field-ms {
+        grid-area: ms;
+        max-width: 145px;
+      }
+    
+      .twsh-grid label,
+      .twsh-options label {
+        font-size: 11px;
+        margin-bottom: 2px;
+      }
+    
+      .twsh-input {
+        width: 100%;
+        min-width: 0;
+        font-size: 13px;
+        padding: 4px;
+        height: 29px;
+      }
+    
+      .twsh-options {
+        display: block;
+        margin: 6px 0;
+      }
+    
+      .twsh-options label {
+        margin-bottom: 6px;
+      }
+    
+      .twsh-options input[type="number"] {
+        width: 145px;
+        font-size: 13px;
+        padding: 4px;
+        height: 29px;
+        margin-top: 3px;
+      }
+    
+      .twsh-result {
+        padding: 6px;
+        font-size: 11px;
+      }
+    
+      .twsh-result-row {
+        display: block;
+        margin-bottom: 6px;
+      }
+    
+      .twsh-result-row:last-child {
+        margin-bottom: 0;
+      }
+    
+      .twsh-result-row strong {
+        display: block;
+        margin-bottom: 1px;
+      }
+    
+      .twsh-result-row span {
+        display: block;
+        text-align: right;
+        font-size: 12px;
+        line-height: 1.25;
+      }
+    
+      .twsh-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+    
+      .twsh-buttons .btn {
+        width: 100%;
+        box-sizing: border-box;
+        font-size: 12px;
+        padding: 4px 6px;
+      }
+    
+      .twsh-status {
+        font-size: 11px;
+        padding: 5px;
+      }
+    
+      .twsh-footer {
+        font-size: 9px;
+      }
+    
+      .twsh-external-commands {
+        max-width: 100%;
+        overflow-x: auto;
+        font-size: 10px;
+        padding: 6px;
+      }
+    
+      .twsh-external-header {
+        font-size: 12px;
+        margin-bottom: 5px;
+      }
+    
+      .twsh-external-body {
+        max-height: 320px;
+        overflow-y: auto;
+        overflow-x: auto;
+      }
+    
+      .twsh-command-table {
+        width: 100%;
+        min-width: 0;
+        table-layout: fixed;
+        font-size: 10px;
+      }
+    
+      .twsh-command-table th,
+      .twsh-command-table td {
+        padding: 3px 2px;
+        word-break: break-word;
+        white-space: normal;
+      }
+    
+      .twsh-command-table th:nth-child(1),
+      .twsh-command-table td:nth-child(1) {
+        width: 28%;
+      }
+    
+      .twsh-command-table th:nth-child(2),
+      .twsh-command-table td:nth-child(2) {
+        width: 31%;
+      }
+    
+      .twsh-command-table th:nth-child(3),
+      .twsh-command-table td:nth-child(3) {
+        width: 24%;
+      }
+    
+      .twsh-command-table th:nth-child(4),
+      .twsh-command-table td:nth-child(4) {
+        width: 17%;
+      }
+    
+      .twsh-command-table .btn {
+        font-size: 10px;
+        padding: 2px 4px;
+      }
+    }
     `;
 
     document.head.appendChild(style);
