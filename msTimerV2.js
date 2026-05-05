@@ -78,6 +78,14 @@
     }
   }
 
+  function getSearchParamsFromUrl(url) {
+    try {
+      return new URL(url || "", window.location.origin).searchParams;
+    } catch (e) {
+      return new URLSearchParams("");
+    }
+  }
+
   function getRawServerNowMs() {
     if (typeof Timing !== "undefined" && typeof Timing.getCurrentServerTime === "function") {
       return Timing.getCurrentServerTime();
@@ -136,7 +144,7 @@
     );
   }
 
-  function formatTime(ms, includeMs) {
+  function formatTime(ms, includeMs, msStep) {
     const date = new Date(ms);
 
     const base =
@@ -147,7 +155,13 @@
       pad(date.getSeconds());
 
     if (includeMs) {
-      return base + "." + pad(date.getMilliseconds(), 3);
+      let shownMs = date.getMilliseconds();
+
+      if (msStep && msStep > 1) {
+        shownMs = Math.floor(shownMs / msStep) * msStep;
+      }
+
+      return base + "." + pad(shownMs, 3);
     }
 
     return base;
@@ -322,21 +336,6 @@
     updateFromInputs(shouldSave);
   }
 
-  function fillCurrentArrival() {
-    const dateArrival = document.getElementById("date_arrival");
-    if (!dateArrival) return;
-
-    const arrivalMs = parseArrivalTextToMs(dateArrival.textContent);
-
-    if (!arrivalMs) {
-      setStatus("Could not read current arrival time.", "error");
-      return;
-    }
-
-    fillTargetFromMs(arrivalMs, true);
-    setStatus("Current arrival time loaded.", "success");
-  }
-
   function updateLoop() {
     const now = getServerNowMs();
     const currentMs = ((now % 1000) + 1000) % 1000;
@@ -346,7 +345,7 @@
     const percentage = 100 - distanceToGoal / 10;
 
     ui.bar.style.width = Math.max(0, Math.min(100, percentage)) + "%";
-    ui.currentTime.textContent = formatTime(now, true);
+    ui.currentTime.textContent = formatTime(now, true, 10);
 
     if (app.sendMs !== null && !isNaN(app.sendMs)) {
       const remaining = app.sendMs - now;
@@ -454,21 +453,90 @@
     return 1;
   }
 
+  function getExternalCommandsAnchor() {
+    const form = document.getElementById("command-data-form");
+
+    const tables = Array.from(document.querySelectorAll("table.vis, table"));
+    const unitTables = tables.filter(table => {
+      const text = cleanText(table.textContent).toLowerCase();
+      const hasUnitImages = !!table.querySelector('img[src*="/unit/"], img[src*="unit_"]');
+      const hasUnitsText = /\bunits\b/.test(text);
+
+      return hasUnitImages || hasUnitsText;
+    });
+
+    if (unitTables.length) {
+      const unitTable = unitTables[unitTables.length - 1];
+
+      return {
+        parent: unitTable.parentNode,
+        after: unitTable
+      };
+    }
+
+    if (form) {
+      return {
+        parent: form.parentNode,
+        after: form
+      };
+    }
+
+    return {
+      parent: document.body,
+      after: null
+    };
+  }
+
+  function ensureExternalCommandsHost() {
+    let box = document.getElementById("twactics-snipe-helper-commands");
+
+    if (box) {
+      return box.querySelector(".twsh-external-body");
+    }
+
+    const anchor = getExternalCommandsAnchor();
+
+    box = document.createElement("div");
+    box.id = "twactics-snipe-helper-commands";
+    box.className = "twsh-external-commands";
+
+    const header = document.createElement("div");
+    header.className = "twsh-external-header";
+    header.textContent = "Target commands";
+
+    const body = document.createElement("div");
+    body.className = "twsh-external-body";
+
+    box.appendChild(header);
+    box.appendChild(body);
+
+    if (anchor.after && anchor.after.nextSibling) {
+      anchor.parent.insertBefore(box, anchor.after.nextSibling);
+    } else {
+      anchor.parent.appendChild(box);
+    }
+
+    return body;
+  }
+
   function renderTargetCommands(html) {
+    const commandsBody = ensureExternalCommandsHost();
+    commandsBody.innerHTML = "";
+
     const wrapper = document.createElement("div");
     wrapper.innerHTML = html;
 
     const commandsContainer = wrapper.querySelector(".commands-container");
 
     if (!commandsContainer) {
-      ui.commands.innerHTML = "";
+      commandsBody.textContent = "No visible commands found on target village.";
       setStatus("No visible commands found on target village.", "warn");
       return;
     }
 
     const table = commandsContainer.querySelector("table");
     if (!table) {
-      ui.commands.innerHTML = "";
+      commandsBody.textContent = "No command table found.";
       setStatus("No command table found.", "warn");
       return;
     }
@@ -477,7 +545,7 @@
     const commandRows = Array.from(table.querySelectorAll("tr.command-row"));
 
     if (!commandRows.length) {
-      ui.commands.innerHTML = "";
+      commandsBody.textContent = "No command rows found.";
       setStatus("No command rows found.", "warn");
       return;
     }
@@ -546,11 +614,156 @@
     });
 
     resultTable.appendChild(tbody);
-
-    ui.commands.innerHTML = "";
-    ui.commands.appendChild(resultTable);
+    commandsBody.appendChild(resultTable);
 
     setStatus("Loaded " + tbody.children.length + " command(s).", "success");
+
+    const externalBox = document.getElementById("twactics-snipe-helper-commands");
+    if (externalBox && externalBox.scrollIntoView) {
+      externalBox.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest"
+      });
+    }
+  }
+
+  function loadVillageNotes() {
+    const villageId = getTargetVillageId();
+
+    if (!villageId) {
+      setStatus("Could not find target village ID.", "error");
+      return;
+    }
+
+    const url =
+      typeof game_data !== "undefined" && game_data.link_base_pure
+        ? game_data.link_base_pure + "info_village&id=" + villageId
+        : "/game.php?screen=info_village&id=" + villageId;
+
+    setStatus("Loading village notes...", "warn");
+
+    $.get(url)
+      .done(function (html) {
+        const noteText = extractVillageNoteFromHtml(html);
+        renderVillageNotes(noteText);
+      })
+      .fail(function () {
+        setStatus("Could not load village notes.", "error");
+      });
+  }
+
+  function extractVillageNoteFromHtml(html) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+
+    const selectors = [
+      "textarea[name='note']",
+      "textarea[name='village_note']",
+      "textarea[name='village_notes']",
+      "#village_note textarea",
+      "#village_notes textarea",
+      "#village_note",
+      "#village_notes",
+      "#village_note_body",
+      ".village_note",
+      ".village_notes",
+      ".village-note",
+      ".village-notes",
+      ".village-note-body",
+      ".quickedit-village-note .quickedit-label",
+      ".quickedit-village-notes .quickedit-label"
+    ];
+
+    function getElementText(el) {
+      if (!el) return "";
+
+      if (typeof el.value === "string") {
+        return cleanText(el.value);
+      }
+
+      return cleanText(el.textContent);
+    }
+
+    function isUsefulNoteText(text) {
+      const value = cleanText(text);
+      const lower = value.toLowerCase();
+
+      if (!value) return false;
+      if (value.length > 2500) return false;
+
+      const blocked = [
+        "note",
+        "notes",
+        "village note",
+        "village notes",
+        "edit",
+        "save",
+        "delete",
+        "empty",
+        "no note",
+        "no notes"
+      ];
+
+      if (blocked.includes(lower)) return false;
+
+      return true;
+    }
+
+    for (let i = 0; i < selectors.length; i++) {
+      const el = doc.querySelector(selectors[i]);
+      const text = getElementText(el);
+
+      if (isUsefulNoteText(text)) {
+        return text;
+      }
+    }
+
+    const fallbackElements = Array.from(doc.querySelectorAll("[id], [class], textarea"));
+
+    for (let i = 0; i < fallbackElements.length; i++) {
+      const el = fallbackElements[i];
+      const id = String(el.id || "").toLowerCase();
+      const className = String(el.className || "").toLowerCase();
+      const marker = id + " " + className;
+
+      if (!marker.includes("note")) continue;
+      if (marker.includes("notebook")) continue;
+
+      const text = getElementText(el);
+
+      if (isUsefulNoteText(text)) {
+        return text;
+      }
+    }
+
+    return "";
+  }
+
+  function renderVillageNotes(noteText) {
+    ui.notes.innerHTML = "";
+
+    const box = document.createElement("div");
+    box.className = "twsh-notes-box";
+
+    const title = document.createElement("div");
+    title.className = "twsh-notes-title";
+    title.textContent = "Village notes";
+
+    const content = document.createElement("div");
+    content.className = "twsh-notes-content";
+
+    if (noteText) {
+      content.textContent = noteText;
+      setStatus("Village notes loaded.", "success");
+    } else {
+      content.textContent = "No village note found, or the note could not be read from this page.";
+      setStatus("No village note found.", "warn");
+    }
+
+    box.appendChild(title);
+    box.appendChild(content);
+
+    ui.notes.appendChild(box);
   }
 
   function addStyles() {
@@ -611,6 +824,10 @@
         gap: 5px;
         align-items: end;
         margin-bottom: 6px;
+      }
+
+      .twsh-field {
+        min-width: 0;
       }
 
       .twsh-grid label,
@@ -682,10 +899,66 @@
         background: #f2dede;
       }
 
-      .twsh-command-wrap {
+      .twsh-notes-wrap {
         margin-top: 8px;
-        max-height: 260px;
+      }
+
+      .twsh-notes-box {
+        padding: 6px;
+        background: #fff4d5;
+        border: 1px solid #bd9c5a;
+      }
+
+      .twsh-notes-title {
+        font-weight: bold;
+        margin-bottom: 4px;
+      }
+
+      .twsh-notes-content {
+        white-space: pre-wrap;
+        line-height: 1.35;
+        max-height: 160px;
         overflow-y: auto;
+        background: #fffaf0;
+        border: 1px solid #bd9c5a;
+        padding: 6px;
+      }
+
+      .twsh-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 8px;
+        padding-top: 6px;
+        border-top: 1px solid #bd9c5a;
+        font-size: 10px;
+        opacity: 0.8;
+      }
+
+      .twsh-footer a {
+        color: #2f1b00;
+        text-decoration: underline;
+      }
+
+      .twsh-external-commands {
+        margin-top: 8px;
+        padding: 8px;
+        border: 1px solid #7d510f;
+        background: #f4e4bc;
+        color: #2f1b00;
+        font-family: Verdana, Arial, sans-serif;
+        font-size: 12px;
+      }
+
+      .twsh-external-header {
+        font-weight: bold;
+        margin-bottom: 6px;
+      }
+
+      .twsh-external-body {
+        max-height: 360px;
+        overflow-y: auto;
+        overflow-x: auto;
       }
 
       .twsh-command-table {
@@ -710,16 +983,107 @@
         background: #f0e2be;
       }
 
-      .twsh-footer {
-        margin-top: 6px;
-        text-align: right;
-        font-size: 10px;
-        opacity: 0.7;
-      }
-
       @media (max-width: 700px) {
+        #twactics-snipe-helper {
+          max-width: 100%;
+          overflow: hidden;
+        }
+
         .twsh-grid {
-          grid-template-columns: 1fr 1fr 1fr;
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-areas:
+            "date date date"
+            "hh mm ss"
+            "ms ms ms";
+          gap: 8px;
+        }
+
+        .twsh-field-date {
+          grid-area: date;
+        }
+
+        .twsh-field-hh {
+          grid-area: hh;
+        }
+
+        .twsh-field-mm {
+          grid-area: mm;
+        }
+
+        .twsh-field-ss {
+          grid-area: ss;
+        }
+
+        .twsh-field-ms {
+          grid-area: ms;
+        }
+
+        .twsh-input {
+          width: 100%;
+          min-width: 0;
+          font-size: 16px;
+          padding: 6px;
+        }
+
+        .twsh-options {
+          display: block;
+        }
+
+        .twsh-options label {
+          margin-bottom: 8px;
+        }
+
+        .twsh-options input[type="number"] {
+          width: 100%;
+          font-size: 16px;
+          padding: 6px;
+          margin-top: 3px;
+        }
+
+        .twsh-result {
+          padding: 8px;
+        }
+
+        .twsh-result-row {
+          display: block;
+          margin-bottom: 8px;
+        }
+
+        .twsh-result-row:last-child {
+          margin-bottom: 0;
+        }
+
+        .twsh-result-row strong {
+          display: block;
+          margin-bottom: 2px;
+        }
+
+        .twsh-result-row span {
+          display: block;
+          text-align: right;
+          font-size: 15px;
+          line-height: 1.35;
+        }
+
+        .twsh-buttons {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .twsh-buttons .btn {
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        .twsh-external-commands {
+          max-width: 100%;
+          overflow-x: auto;
+        }
+
+        .twsh-command-table {
+          min-width: 520px;
         }
       }
     `;
@@ -741,8 +1105,9 @@
     return input;
   }
 
-  function createField(labelText, input) {
+  function createField(labelText, input, extraClass) {
     const wrap = document.createElement("div");
+    wrap.className = "twsh-field" + (extraClass ? " " + extraClass : "");
 
     const label = document.createElement("label");
     label.textContent = labelText;
@@ -795,11 +1160,11 @@
     const targetSecond = createNumberInput("twsh-target-second", 0, 59, 0, "SS");
     const targetMs = createNumberInput("twsh-target-ms", 0, 999, 0, "MS");
 
-    grid.appendChild(createField("Date", targetDate));
-    grid.appendChild(createField("HH", targetHour));
-    grid.appendChild(createField("MM", targetMinute));
-    grid.appendChild(createField("SS", targetSecond));
-    grid.appendChild(createField("MS", targetMs));
+    grid.appendChild(createField("Date", targetDate, "twsh-field-date"));
+    grid.appendChild(createField("HH", targetHour, "twsh-field-hh"));
+    grid.appendChild(createField("MM", targetMinute, "twsh-field-mm"));
+    grid.appendChild(createField("SS", targetSecond, "twsh-field-ss"));
+    grid.appendChild(createField("MS", targetMs, "twsh-field-ms"));
 
     const options = document.createElement("div");
     options.className = "twsh-options";
@@ -852,31 +1217,50 @@
     const buttons = document.createElement("div");
     buttons.className = "twsh-buttons";
 
-    const currentArrivalButton = document.createElement("button");
-    currentArrivalButton.type = "button";
-    currentArrivalButton.className = "btn";
-    currentArrivalButton.textContent = "Use current arrival";
-    currentArrivalButton.addEventListener("click", fillCurrentArrival);
-
     const loadCommandsButton = document.createElement("button");
     loadCommandsButton.type = "button";
     loadCommandsButton.className = "btn";
     loadCommandsButton.textContent = "Load target commands";
     loadCommandsButton.addEventListener("click", loadTargetCommands);
 
-    buttons.appendChild(currentArrivalButton);
+    const loadNotesButton = document.createElement("button");
+    loadNotesButton.type = "button";
+    loadNotesButton.className = "btn";
+    loadNotesButton.textContent = "Load village notes";
+    loadNotesButton.addEventListener("click", loadVillageNotes);
+
     buttons.appendChild(loadCommandsButton);
+    buttons.appendChild(loadNotesButton);
 
     const status = document.createElement("div");
     status.className = "twsh-status";
     status.textContent = "Ready. Set target landing time.";
 
-    const commands = document.createElement("div");
-    commands.className = "twsh-command-wrap";
+    const notes = document.createElement("div");
+    notes.className = "twsh-notes-wrap";
 
     const footer = document.createElement("div");
     footer.className = "twsh-footer";
-    footer.textContent = "Created by Twactics";
+
+    const feedbackLink = document.createElement("a");
+    feedbackLink.href = "https://twactics.com/scripts/snipe-helper";
+    feedbackLink.target = "_blank";
+    feedbackLink.rel = "noopener noreferrer";
+    feedbackLink.textContent = "Send feedback";
+
+    const createdBy = document.createElement("div");
+
+    const twacticsLink = document.createElement("a");
+    twacticsLink.href = "https://twactics.com";
+    twacticsLink.target = "_blank";
+    twacticsLink.rel = "noopener noreferrer";
+    twacticsLink.textContent = "Twactics";
+
+    createdBy.appendChild(document.createTextNode("Created by "));
+    createdBy.appendChild(twacticsLink);
+
+    footer.appendChild(feedbackLink);
+    footer.appendChild(createdBy);
 
     root.appendChild(title);
     root.appendChild(progress);
@@ -885,7 +1269,7 @@
     root.appendChild(result);
     root.appendChild(buttons);
     root.appendChild(status);
-    root.appendChild(commands);
+    root.appendChild(notes);
     root.appendChild(footer);
 
     dateArrival.appendChild(root);
@@ -903,7 +1287,7 @@
     ui.sendTime = sendTime;
     ui.countdown = countdown;
     ui.status = status;
-    ui.commands = commands;
+    ui.notes = notes;
 
     [
       targetDate,
@@ -942,7 +1326,7 @@
       return;
     }
 
-    const referrerParams = new URLSearchParams(document.referrer || "");
+    const referrerParams = getSearchParamsFromUrl(document.referrer || "");
     const referrerArrival = parseInt(referrerParams.get("arrivalTimestamp"), 10);
 
     if (!isNaN(referrerArrival) && referrerArrival > 0) {
@@ -1037,6 +1421,9 @@
 
     const root = document.getElementById("twactics-snipe-helper");
     if (root) root.remove();
+
+    const externalCommands = document.getElementById("twactics-snipe-helper-commands");
+    if (externalCommands) externalCommands.remove();
 
     document.title = app.originalTitle;
 
