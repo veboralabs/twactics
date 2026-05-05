@@ -17,6 +17,7 @@
   const SCRIPT_NAME = "Address Book Assistant";
   const SCRIPT_VERSION = "v1.0.0";
   const STORAGE_KEY = getStorageKey();
+  const SAVED_LIST_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
   const state = {
     players: [],
@@ -64,6 +65,17 @@
       }
 
       const data = JSON.parse(raw);
+
+      if (!data.savedAt || Date.now() - data.savedAt > SAVED_LIST_MAX_AGE) {
+        clearSavedPlayerList();
+      
+        return {
+          players: [],
+          source: "",
+          savedAt: null
+        };
+      }
+      
       const players = [];
 
       if (Array.isArray(data.players)) {
@@ -93,6 +105,31 @@
       console.warn("Address Book Assistant could not clear saved list:", err);
     }
   }
+
+  function removePlayerFromSavedList(nameToRemove) {
+      try {
+        const targetName = cleanName(nameToRemove).toLowerCase();
+        const saved = loadPlayerList();
+    
+        const remainingPlayers = saved.players.filter(playerName => {
+          return cleanName(playerName).toLowerCase() !== targetName;
+        });
+    
+        if (remainingPlayers.length > 0) {
+          const data = {
+            players: remainingPlayers,
+            source: saved.source || state.source || "unknown",
+            savedAt: saved.savedAt || Date.now()
+          };
+    
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        } else {
+          clearSavedPlayerList();
+        }
+      } catch (err) {
+        console.warn("Address Book Assistant could not update saved list:", err);
+      }
+    }
 
   function getParam(name, url) {
     try {
@@ -554,11 +591,26 @@
       h: hash
     })
       .then(() => {
-        button.textContent = "Added";
+        button.textContent = "Submitted";
         button.dataset.done = "1";
         button.disabled = true;
         statusCell.textContent = "Submitted";
-        setStatus("Contact submitted: " + name, "success");
+      
+        removePlayerFromSavedList(name);
+      
+        const remainingSaved = loadPlayerList().players.length;
+      
+        if (remainingSaved > 0) {
+          setStatus(
+            "Contact submitted: " + name + ". " + remainingSaved + " saved contact(s) remaining.",
+            "success"
+          );
+        } else {
+          setStatus(
+            "Contact submitted: " + name + ". No saved contacts remaining.",
+            "success"
+          );
+        }
       })
       .catch(error => {
         console.error("Address Book Assistant add error:", error);
@@ -1263,9 +1315,9 @@
 
       clearSavedPlayerList();
       renderResults();
-      setStatus("Cleared the current list and saved player data.", "success");
+      setStatus("Cleared the current list and removed saved players.", "success");
     });
-
+    
     if (!isAddressBookPage()) {
       buttons.appendChild(extractBtn);
     }
