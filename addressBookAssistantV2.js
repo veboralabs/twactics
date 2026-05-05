@@ -16,6 +16,7 @@
 
   const SCRIPT_NAME = "Address Book Assistant";
   const SCRIPT_VERSION = "v1.0.0";
+  const STORAGE_KEY = getStorageKey();
 
   const state = {
     players: [],
@@ -27,6 +28,71 @@
   };
 
   const ui = {};
+
+  function getStorageKey() {
+    const world =
+      typeof game_data !== "undefined" && game_data.world
+        ? game_data.world
+        : window.location.hostname;
+
+    return "twaba_saved_players_" + world;
+  }
+
+  function savePlayerList(players, source) {
+    try {
+      const data = {
+        players: players,
+        source: source || "unknown",
+        savedAt: Date.now()
+      };
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (err) {
+      console.warn("Address Book Assistant could not save list:", err);
+    }
+  }
+
+  function loadPlayerList() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        return {
+          players: [],
+          source: "",
+          savedAt: null
+        };
+      }
+
+      const data = JSON.parse(raw);
+      const players = [];
+
+      if (Array.isArray(data.players)) {
+        data.players.forEach(name => addUnique(players, name));
+      }
+
+      return {
+        players: players,
+        source: data.source || "",
+        savedAt: data.savedAt || null
+      };
+    } catch (err) {
+      console.warn("Address Book Assistant could not load saved list:", err);
+
+      return {
+        players: [],
+        source: "",
+        savedAt: null
+      };
+    }
+  }
+
+  function clearSavedPlayerList() {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (err) {
+      console.warn("Address Book Assistant could not clear saved list:", err);
+    }
+  }
 
   function getParam(name, url) {
     try {
@@ -74,6 +140,7 @@
 
   function isHeaderText(value) {
     const text = cleanText(value).toLowerCase();
+
     return (
       text.includes("name") &&
       text.includes("rank") &&
@@ -236,7 +303,7 @@
       ambiguousText = cleanText(raw);
       unparsed.push(ambiguousText);
       warnings.push(
-        "This looks like one single line with several names. Because some player names can contain spaces, the script will not guess. Put each name on a new line, use commas, or use the world-data resolver button."
+        "This looks like one single line with several names. Because player names can contain spaces, the script will not guess. Put each name on a new line, use commas, or use the world-data resolver button."
       );
 
       return {
@@ -332,6 +399,7 @@
       if (node.tagName && node.tagName.toLowerCase() === "table") {
         return node;
       }
+
       node = node.nextElementSibling;
     }
 
@@ -447,6 +515,7 @@
       if (!response.ok) {
         throw new Error("Request failed: " + response.status);
       }
+
       return response.text();
     });
   }
@@ -461,7 +530,7 @@
 
     if (!form) {
       statusCell.textContent = "Address Book form not found";
-      setStatus("Go to Mail → Address book before adding contacts.", "error");
+      setStatus("Go to Mail -> Address book before adding contacts.", "error");
       return;
     }
 
@@ -538,6 +607,7 @@
         if (!response.ok) {
           throw new Error("Could not load /map/player.txt");
         }
+
         return response.text();
       })
       .then(text => {
@@ -581,6 +651,7 @@
       if (!isValidPlayerNameCandidate(cleanedName)) return;
 
       const key = cleanedName.toLowerCase();
+
       if (!nameMap.has(key)) {
         nameMap.set(key, cleanedName);
       }
@@ -640,21 +711,6 @@
     };
   }
 
-  function copyText(text) {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      return navigator.clipboard.writeText(text);
-    }
-
-    const temp = document.createElement("textarea");
-    temp.value = text;
-    document.body.appendChild(temp);
-    temp.select();
-    document.execCommand("copy");
-    temp.remove();
-
-    return Promise.resolve();
-  }
-
   function parseAndRenderFromTextarea() {
     const result = parsePastedText(ui.textarea.value);
 
@@ -667,7 +723,13 @@
     renderResults();
 
     if (state.players.length) {
-      setStatus("Parsed " + state.players.length + " player(s).", "success");
+      savePlayerList(state.players, state.source);
+
+      if (canAddContacts()) {
+        setStatus("Prepared " + state.players.length + " contact(s). Click Add next to each player.", "success");
+      } else {
+        setStatus("Prepared and saved " + state.players.length + " contact(s). Open Address Book to add them.", "success");
+      }
     } else if (state.ambiguousText) {
       setStatus("Input is ambiguous. Use new lines, commas, or the resolver button.", "warn");
     } else {
@@ -690,7 +752,7 @@
         if (result.status === "success") {
           ui.textarea.value = result.players.join("\n");
           parseAndRenderFromTextarea();
-          setStatus("Resolved " + result.players.length + " player(s) using world data.", "success");
+          setStatus("Resolved and saved " + result.players.length + " player(s) using world data.", "success");
           return;
         }
 
@@ -738,9 +800,9 @@
       summary.className = "twaba-summary";
 
       if (canAddContacts()) {
-        summary.textContent = "Parsed players. Click Add next to each player to submit one Address Book request.";
+        summary.textContent = "Prepared contacts. Click Add next to each player to submit one Address Book request.";
       } else {
-        summary.textContent = "Parsed players. Add buttons are enabled only on Mail → Address book.";
+        summary.textContent = "Prepared contacts saved. Go to Mail -> Address book and run the script again to add them.";
       }
 
       ui.results.appendChild(summary);
@@ -788,7 +850,7 @@
         addBtn.disabled = !canAddContacts();
 
         if (!canAddContacts()) {
-          addBtn.title = "Go to Mail → Address book to add contacts.";
+          addBtn.title = "Go to Mail -> Address book to add contacts.";
         }
 
         addBtn.addEventListener("click", function () {
@@ -1098,7 +1160,7 @@
     const closeBtn = document.createElement("button");
     closeBtn.type = "button";
     closeBtn.className = "twaba-close";
-    closeBtn.textContent = "×";
+    closeBtn.textContent = "x";
     closeBtn.addEventListener("click", closeDialog);
 
     header.appendChild(title);
@@ -1150,15 +1212,25 @@
       state.ambiguousText = "";
       state.source = result.source;
 
+      savePlayerList(result.players, result.source);
+
       renderResults();
-      setStatus("Extracted " + result.players.length + " player(s) from " + result.source + ".", "success");
+      setStatus(
+        "Extracted and saved " +
+          result.players.length +
+          " player(s) from " +
+          result.source +
+          ". Go to Address Book and run the script again to add them.",
+        "success"
+      );
     });
 
-    const parseBtn = document.createElement("button");
-    parseBtn.type = "button";
-    parseBtn.className = "btn";
-    parseBtn.textContent = "Parse list";
-    parseBtn.addEventListener("click", parseAndRenderFromTextarea);
+    const prepareBtn = document.createElement("button");
+    prepareBtn.type = "button";
+    prepareBtn.className = "btn";
+    prepareBtn.textContent = "Prepare contacts";
+    prepareBtn.title = "Read the input and create the contact list.";
+    prepareBtn.addEventListener("click", parseAndRenderFromTextarea);
 
     const resolveWorldBtn = document.createElement("button");
     resolveWorldBtn.type = "button";
@@ -1167,23 +1239,6 @@
     resolveWorldBtn.style.display = "none";
     resolveWorldBtn.title = "Loads /map/player.txt once per hour to resolve ambiguous single-line player lists.";
     resolveWorldBtn.addEventListener("click", resolveAmbiguousText);
-
-    const copyBtn = document.createElement("button");
-    copyBtn.type = "button";
-    copyBtn.className = "btn";
-    copyBtn.textContent = "Copy names";
-    copyBtn.addEventListener("click", function () {
-      const text = state.players.length ? state.players.join("\n") : ui.textarea.value.trim();
-
-      if (!text) {
-        setStatus("Nothing to copy.", "warn");
-        return;
-      }
-
-      copyText(text)
-        .then(() => setStatus("Copied to clipboard.", "success"))
-        .catch(() => setStatus("Could not copy to clipboard.", "error"));
-    });
 
     const openAddressBtn = document.createElement("button");
     openAddressBtn.type = "button";
@@ -1196,22 +1251,27 @@
     const clearBtn = document.createElement("button");
     clearBtn.type = "button";
     clearBtn.className = "btn";
-    clearBtn.textContent = "Clear";
+    clearBtn.textContent = "Clear saved list";
     clearBtn.addEventListener("click", function () {
       ui.textarea.value = "";
+
       state.players = [];
       state.unparsed = [];
       state.warnings = [];
       state.ambiguousText = "";
       state.source = "";
+
+      clearSavedPlayerList();
       renderResults();
-      setStatus("Cleared.", "success");
+      setStatus("Cleared the current list and saved player data.", "success");
     });
 
-    buttons.appendChild(extractBtn);
-    buttons.appendChild(parseBtn);
+    if (!isAddressBookPage()) {
+      buttons.appendChild(extractBtn);
+    }
+
+    buttons.appendChild(prepareBtn);
     buttons.appendChild(resolveWorldBtn);
-    buttons.appendChild(copyBtn);
 
     if (!isAddressBookPage()) {
       buttons.appendChild(openAddressBtn);
@@ -1225,7 +1285,7 @@
     if (canAddContacts()) {
       status.textContent = "Ready. You are on the Address Book page, so Add buttons will be enabled.";
     } else {
-      status.textContent = "Add buttons are enabled only on Mail → Address book. You can still extract, parse, and copy names here.";
+      status.textContent = "Add buttons are enabled only on Mail -> Address book. You can still extract or prepare names here.";
     }
 
     const results = document.createElement("div");
@@ -1240,6 +1300,7 @@
     feedbackLink.textContent = "Send feedback";
 
     const createdBy = document.createElement("div");
+
     const twacticsLink = document.createElement("a");
     twacticsLink.href = "https://twactics.com";
     twacticsLink.target = "_blank";
@@ -1272,6 +1333,30 @@
     ui.resolveWorldBtn = resolveWorldBtn;
 
     makeDraggable(box, header);
+
+    if (isAddressBookPage()) {
+      const saved = loadPlayerList();
+
+      if (saved.players.length) {
+        ui.textarea.value = saved.players.join("\n");
+
+        state.players = saved.players;
+        state.unparsed = [];
+        state.warnings = [];
+        state.ambiguousText = "";
+        state.source = saved.source || "saved list";
+
+        renderResults();
+        setStatus(
+          "Loaded " +
+            saved.players.length +
+            " saved player(s) from " +
+            (saved.source || "previous extraction") +
+            ".",
+          "success"
+        );
+      }
+    }
   }
 
   createDialog();
