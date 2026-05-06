@@ -1548,7 +1548,7 @@
         }
       
         .twsh-command-table .btn {
-          font-size: 9px;
+          font-size: 9px !important;
           padding: 1px 3px;
           line-height: 1.1;
         }
