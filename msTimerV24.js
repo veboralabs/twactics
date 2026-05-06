@@ -34,7 +34,8 @@
     commandsVisible: false,
     notesVisible: false,
     alarm60Played: false,
-    alarm30Played: false
+    alarm30Played: false,
+    barState: null
   };
 
   const ui = {};
@@ -429,13 +430,12 @@
       }
     
       if (remaining > 0 && remaining <= 1000) {
-        ui.bar.style.background = CONFIG.timeColor;
+        setBarState("ready");
       } else {
-        ui.bar.style.background = CONFIG.waitingColor;
+        setBarState("waiting");
       }
     } else {
-      ui.bar.style.background = CONFIG.noDateColor;
-      document.title = app.originalTitle;
+      setBarState("no-date");
     }
   }
 
@@ -505,6 +505,65 @@
     }
 
     return null;
+  }
+
+  function getCommandIdFromRow(row) {
+    const link = row.querySelector("a[href*='info_command'][href*='id='], a[href*='ajax=details'][href*='id=']");
+    if (link) {
+      return getParam("id", link.href);
+    }
+  
+    const dataIdEl = row.querySelector("[data-id]");
+    if (dataIdEl) {
+      return dataIdEl.getAttribute("data-id");
+    }
+  
+    const html = row.innerHTML || "";
+    const match = html.match(/info_command[^"']*id=(\d+)/) || html.match(/data-id=["']?(\d+)/);
+  
+    return match ? match[1] : null;
+  }
+
+  function getCommandDetailsUrl(commandId) {
+    if (!commandId) return null;
+  
+    const base =
+      typeof game_data !== "undefined" && game_data.link_base_pure
+        ? game_data.link_base_pure
+        : "/game.php?";
+  
+    return base + "info_command&ajax=details&id=" + commandId;
+  }
+
+  function formatCommandDetails(details) {
+    if (!details || !details.units) return "";
+  
+    const units = [];
+  
+    Object.keys(details.units).forEach(function (unitName) {
+      const unit = details.units[unitName];
+      const count = parseInt(unit.count || "0", 10);
+  
+      if (count > 0) {
+        units.push(unitName + ": " + count);
+      }
+    });
+  
+    const parts = [];
+  
+    if (details.start_comment) {
+      parts.push(details.start_comment);
+    }
+  
+    if (units.length) {
+      parts.push(units.join(", "));
+    }
+  
+    if (details.catapult_target && details.catapult_target.name) {
+      parts.push("Target: " + details.catapult_target.name);
+    }
+  
+    return parts.join(" | ");
   }
 
   function loadTargetCommands() {
@@ -708,12 +767,43 @@
       const effectiveArrivalMs = arrivalMs + getActiveOffsetMs();
       const sendMs = effectiveArrivalMs - app.duration;
       const sendIn = sendMs - getServerNowMs();
-
+      const commandId = getCommandIdFromRow(row);
+      
       const tr = document.createElement("tr");
-
+      
       const commandCell = document.createElement("td");
-      commandCell.textContent = commandName || "Command";
-
+      commandCell.className = "twsh-native-command-cell";
+      
+      if (cells[0]) {
+        const nativeCommandContent = cells[0].cloneNode(true);
+        commandCell.appendChild(nativeCommandContent);
+      } else {
+        commandCell.textContent = commandName || "Command";
+      }
+      
+      if (commandId) {
+        commandCell.title = "Loading command details...";
+      
+        const detailsUrl = getCommandDetailsUrl(commandId);
+      
+        $.get(detailsUrl)
+          .done(function (details) {
+            const detailText =
+              typeof details === "string"
+                ? details
+                : formatCommandDetails(details);
+      
+            if (detailText) {
+              commandCell.title = detailText;
+            } else {
+              commandCell.title = "No command details found.";
+            }
+          })
+          .fail(function () {
+            commandCell.title = "Could not load command details.";
+          });
+      }
+      
       const arrivalOutCell = document.createElement("td");
       arrivalOutCell.textContent = formatDateTime(arrivalMs, true);
 
@@ -804,9 +894,81 @@
     setStatus("Village notes hidden.", "success");
   }
 
+  function extractNotebookNotesFromDoc(doc) {
+    const candidates = [];
+  
+    const notebookHeaders = Array.from(doc.querySelectorAll("th, td, div, span")).filter(function (el) {
+      return cleanText(el.textContent).toLowerCase() === "notebook:";
+    });
+  
+    notebookHeaders.forEach(function (header) {
+      let table = header.closest("table");
+  
+      if (!table) {
+        table = header.parentElement;
+      }
+  
+      if (!table) return;
+  
+      const rows = Array.from(table.querySelectorAll("tr"));
+  
+      rows.forEach(function (row) {
+        const text = cleanText(row.textContent);
+        const lower = text.toLowerCase();
+  
+        if (!text) return;
+        if (lower === "notebook:") return;
+        if (lower === "edit") return;
+        if (lower.includes("bbcodes.init")) return;
+        if (lower.includes("select all")) return;
+        if (lower.includes("very small")) return;
+        if (lower.includes("text //")) return;
+  
+        const hasMeta =
+          lower.includes("created:") ||
+          lower.includes("edited:") ||
+          /\bon \d{2}\.\d{2}\.\d{4} at \d{2}:\d{2}:\d{2}/i.test(text);
+  
+        const hasUsefulBattleText =
+          lower.includes("battle time") ||
+          lower.includes("offensive") ||
+          lower.includes("defensive") ||
+          lower.includes("nuke") ||
+          lower.includes("fake") ||
+          /\d{1,2}:\d{2}:\d{2}/.test(text);
+  
+        if (hasMeta || hasUsefulBattleText) {
+          candidates.push(text);
+        }
+      });
+    });
+  
+    const unique = [];
+    const seen = new Set();
+  
+    candidates.forEach(function (text) {
+      const value = cleanText(text);
+  
+      if (!value) return;
+      if (value.length > 3000) return;
+      if (seen.has(value)) return;
+  
+      seen.add(value);
+      unique.push(value);
+    });
+  
+    return unique.join("\n\n");
+  }
+
   function extractVillageNoteFromHtml(html) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
+
+    const notebookNotes = extractNotebookNotesFromDoc(doc);
+    
+    if (notebookNotes) {
+      return notebookNotes;
+    }
   
     function getText(el) {
       if (!el) return "";
@@ -1188,6 +1350,19 @@
         height: 100%;
         width: 0%;
         background: green;
+        will-change: width;
+      }
+            
+      .twsh-bar-waiting {
+        background: #ff9933;
+      }
+      
+      .twsh-bar-ready {
+        background: green;
+      }
+      
+      .twsh-bar-no-date {
+        background: green;
       }
 
       .twsh-current-time {
@@ -1439,6 +1614,19 @@
         max-width: 100% !important;
       }
 
+      .twsh-native-command-cell {
+        text-align: left !important;
+        white-space: nowrap;
+      }
+      
+      .twsh-native-command-cell img {
+        vertical-align: middle;
+      }
+      
+      .twsh-native-command-cell a {
+        color: #2f1b00;
+      }
+
       @media (max-width: 700px) {
         #twactics-snipe-helper {
           display: block;
@@ -1449,6 +1637,11 @@
           font-size: 10px;
           padding: 5px;
           margin: 5px 0 0 0 !important;
+        }
+
+        .twsh-native-command-cell {
+          white-space: normal !important;
+          word-break: normal !important;
         }
 
         #twactics-snipe-helper .twsh-grid,
@@ -2187,6 +2380,20 @@
   function resetAlarms() {
     app.alarm60Played = false;
     app.alarm30Played = false;
+  }
+
+  function setBarState(state) {
+    if (app.barState === state) return;
+  
+    app.barState = state;
+  
+    ui.bar.classList.remove(
+      "twsh-bar-waiting",
+      "twsh-bar-ready",
+      "twsh-bar-no-date"
+    );
+  
+    ui.bar.classList.add("twsh-bar-" + state);
   }
 
   function startScript() {
