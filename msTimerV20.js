@@ -1708,7 +1708,6 @@
         .twsh-command-table {
           width: 100%;
           min-width: 0;
-          table-layout: fixed;
           font-size: 9px;
         }
       
@@ -1759,7 +1758,6 @@
       
         .twsh-note-suggestions .twsh-command-table {
           font-size: 9px;
-          table-layout: fixed;
         }
       
         .twsh-note-suggestions .twsh-command-table th,
