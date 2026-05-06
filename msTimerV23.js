@@ -1493,7 +1493,7 @@
           display: flex;
           flex-wrap: wrap;
           align-items: center;
-          gap: 4px 6px;
+          gap: 5px 7px;
           margin-bottom: 4px;
         }
       
@@ -1507,6 +1507,7 @@
           display: inline-flex;
           align-items: center;
           gap: 4px;
+          margin-bottom: 2px;
         }
       
         .twsh-field-date label {
@@ -1519,7 +1520,7 @@
       
         .twsh-field-date .twsh-input {
           width: 110px;
-          height: 22px;
+          height: 20px;
           font-size: 10px;
           padding: 1px 3px;
         }
@@ -1531,7 +1532,7 @@
         .twsh-field-remember {
           display: inline-flex;
           align-items: center;
-          gap: 3px;
+          gap: 5px;
         }
       
         .twsh-field-hh label,
@@ -1550,15 +1551,15 @@
         .twsh-field-mm .twsh-input,
         .twsh-field-ss .twsh-input,
         .twsh-field-ms .twsh-input {
-          width: 30px;
-          height: 22px;
+          width: 32px;
+          height: 20px;
           font-size: 10px;
           padding: 1px 2px;
         }
       
         .twsh-field-remember input[type="checkbox"] {
-          width: 15px;
-          height: 15px;
+          width: 18px;
+          height: 18px;
           margin: 0;
         }
       
@@ -1567,7 +1568,7 @@
           display: flex;
           align-items: center;
           gap: 5px;
-          margin: 2px 0 4px 0;
+          margin: 2px 0 8px 0;
           width: 100%;
         }
       
@@ -1586,6 +1587,12 @@
           font-size: 10px;
           padding: 1px 2px;
           margin: 0;
+        }
+
+        .twsh-offset-toggle input[type="checkbox"] {
+          width: 18px !important;
+          height: 18px !important;
+          margin: 0 !important;
         }
       
         /* ---- RESULT ---- */
