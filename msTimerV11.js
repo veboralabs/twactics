@@ -1579,6 +1579,10 @@
           min-width: 0 !important;
           width: 100% !important;
         }
+
+         .vis {
+          width: 100% !important;
+          }
       
         #command-data-form > div > table.vis:first-child {
           width: 100% !important;
