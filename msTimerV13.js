@@ -1637,7 +1637,11 @@
         }
       
         /* ---- TRIBALWARS EGNA COMMAND-TABLE LITE BRED/RYMLIGARE ---- */
-          #command-data-form {
+        .vis {
+        width: 100% !important;
+        }
+        
+        #command-data-form {
           min-width: 0 !important;
           width: 100% !important;
         }
