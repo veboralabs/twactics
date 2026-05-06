@@ -1459,7 +1459,7 @@
         .twsh-buttons .btn {
           width: 50%;
           box-sizing: border-box;
-          font-size: 8px;       /* mindre text så de får plats */
+          font-size: 8px !important;       /* mindre text så de får plats */
           padding: 2px 2px;
           line-height: 1;
           white-space: nowrap;
