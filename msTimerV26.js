@@ -913,57 +913,97 @@
 
   function extractNotebookNotesFromDoc(doc) {
     const candidates = [];
+    const processedTables = new Set();
   
-    const notebookHeaders = Array.from(doc.querySelectorAll("th, td")).filter(function (el) {
-      const text = cleanText(el.textContent).toLowerCase();
-    
-      return (
-        text === "notebook:" ||
-        text === "notebook: edit" ||
-        text.startsWith("notebook:")
-      );
-    });
+    function isNotebookHeader(el) {
+      const clone = el.cloneNode(true);
   
-    notebookHeaders.forEach(function (header) {
-      let table = header.closest("table");
+      Array.from(clone.querySelectorAll("a, script, style")).forEach(function (node) {
+        node.remove();
+      });
   
-      if (!table) {
-        table = header.parentElement;
+      const text = cleanText(clone.textContent).toLowerCase();
+  
+      return text === "notebook:";
+    }
+  
+    function getCleanRowText(row) {
+      const clone = row.cloneNode(true);
+  
+      Array.from(
+        clone.querySelectorAll("script, style, textarea, input, button, select, option, .float_right")
+      ).forEach(function (node) {
+        node.remove();
+      });
+  
+      return cleanText(clone.textContent);
+    }
+  
+    function isUsefulNotebookText(text) {
+      const value = cleanText(text);
+      const lower = value.toLowerCase();
+  
+      if (!value) return false;
+      if (value.length > 3000) return false;
+  
+      if (lower === "notebook:") return false;
+      if (lower === "edit") return false;
+  
+      const blockedIncludes = [
+        "bbcodes.init",
+        "ajax_unit_url",
+        "ajax_building_url",
+        "very small",
+        "small normal large",
+        "normal large very large",
+        "close text",
+        "document.ready",
+        "<![cdata",
+        "select all"
+      ];
+  
+      for (let i = 0; i < blockedIncludes.length; i++) {
+        if (lower.includes(blockedIncludes[i])) {
+          return false;
+        }
       }
   
-      if (!table) return;
+      return true;
+    }
   
-      const rows = Array.from(table.querySelectorAll("tr"));
+    const notebookHeaders = Array.from(doc.querySelectorAll("th, td")).filter(isNotebookHeader);
   
-      rows.forEach(function (row) {
-        const text = cleanText(row.textContent);
-        const lower = text.toLowerCase();
+    notebookHeaders.forEach(function (header) {
+      const table = header.closest("table");
+      const headerRow = header.closest("tr");
   
-        if (!text) return;
-        if (lower === "notebook:") return;
-        if (lower === "edit") return;
-        if (lower.includes("bbcodes.init")) return;
-        if (lower.includes("select all")) return;
-        if (lower.includes("very small")) return;
-        if (lower.includes("text //")) return;
+      if (!table || !headerRow) return;
+      if (processedTables.has(table)) return;
   
-        const hasMeta =
-          lower.includes("created:") ||
-          lower.includes("edited:") ||
-          /\bon \d{2}\.\d{2}\.\d{4} at \d{2}:\d{2}:\d{2}/i.test(text);
+      processedTables.add(table);
   
-        const hasUsefulBattleText =
-          lower.includes("battle time") ||
-          lower.includes("offensive") ||
-          lower.includes("defensive") ||
-          lower.includes("nuke") ||
-          lower.includes("fake") ||
-          /\d{1,2}:\d{2}:\d{2}/.test(text);
+      let row = headerRow.nextElementSibling;
   
-        if (hasMeta || hasUsefulBattleText) {
+      while (row) {
+        const rawText = cleanText(row.textContent);
+        const lower = rawText.toLowerCase();
+  
+        // Stoppa innan Own commands-tabellen om den råkar ligga i samma container.
+        if (
+          lower.includes("own commands") ||
+          (lower.includes("arrival time") && lower.includes("arrives in"))
+        ) {
+          break;
+        }
+  
+        const text = getCleanRowText(row);
+  
+        if (isUsefulNotebookText(text)) {
           candidates.push(text);
         }
-      });
+  
+        row = row.nextElementSibling;
+      }
     });
   
     const unique = [];
@@ -973,7 +1013,6 @@
       const value = cleanText(text);
   
       if (!value) return;
-      if (value.length > 3000) return;
       if (seen.has(value)) return;
   
       seen.add(value);
