@@ -208,6 +208,7 @@
 
       const data = {
         remember: remember,
+        offsetEnabled: ui.offsetEnabled.checked,
         offsetMs: clampNumber(ui.offsetMs.value, -9999, 9999, 0)
       };
 
@@ -223,6 +224,14 @@
     } catch (err) {
       console.warn(SCRIPT_NAME + " could not save settings:", err);
     }
+  }
+
+  function getActiveOffsetMs() {
+    if (!ui.offsetEnabled || !ui.offsetEnabled.checked) {
+      return 0;
+    }
+  
+    return clampNumber(ui.offsetMs.value, -9999, 9999, 0);
   }
 
   function getTargetMsFromInputs() {
@@ -255,24 +264,38 @@
 
   function updateFromInputs(shouldSave) {
     const targetMs = getTargetMsFromInputs();
-
+  
     app.targetMs = targetMs;
-
+  
     if (targetMs === null || isNaN(targetMs)) {
       app.sendMs = null;
       ui.sendTime.textContent = "No target time";
+  
+      if (ui.sendTimeSmall) {
+        ui.sendTimeSmall.textContent = "Send time: --";
+      }
+  
       ui.countdown.textContent = "--:--:--";
+      ui.countdown.className = "twsh-countdown-value";
       document.title = app.originalTitle;
-
+  
       if (shouldSave) saveSettings();
       return;
     }
-
-    app.sendMs = targetMs - app.duration;
-
+  
+    const activeOffsetMs = getActiveOffsetMs();
+    const effectiveTargetMs = targetMs + activeOffsetMs;
+  
+    app.sendMs = effectiveTargetMs - app.duration;
+  
     ui.sendTime.textContent = formatDateTime(app.sendMs, true);
+  
+    if (ui.sendTimeSmall) {
+      ui.sendTimeSmall.textContent = "Send time: " + formatDateTime(app.sendMs, true);
+    }
+  
     ui.countdown.textContent = formatDuration(app.sendMs - getServerNowMs());
-
+  
     if (shouldSave) saveSettings();
   }
 
@@ -329,18 +352,19 @@
   }
 
   function fillTargetFromMs(ms, shouldSave) {
-    const offset = clampNumber(ui.offsetMs.value, -9999, 9999, 0);
-    const adjusted = ms + offset;
-
-    setInputsFromMs(adjusted);
+    setInputsFromMs(ms);
     updateFromInputs(shouldSave);
   }
 
   function updateLoop() {
     const now = getServerNowMs();
     const currentMs = ((now % 1000) + 1000) % 1000;
-    const goalMs = clampNumber(ui.targetMs.value, 0, 999, 0);
-
+    
+    const goalMs =
+      app.sendMs !== null && !isNaN(app.sendMs)
+        ? ((Math.round(app.sendMs) % 1000) + 1000) % 1000
+        : clampNumber(ui.targetMs.value, 0, 999, 0);
+    
     const distanceToGoal = (goalMs - currentMs + 1000) % 1000;
     const percentage = 100 - distanceToGoal / 10;
 
@@ -349,21 +373,17 @@
 
     if (app.sendMs !== null && !isNaN(app.sendMs)) {
       const remaining = app.sendMs - now;
-
-      ui.countdown.textContent = formatDuration(remaining);
-
       const remainingText = formatDuration(remaining);
-
+    
+      ui.countdown.textContent = remainingText;
+      ui.countdown.className = remaining > 0 ? "twsh-countdown-value" : "twsh-countdown-value twsh-countdown-late";
+    
       if (remaining > 0) {
         document.title = "Send in: " + remainingText;
       } else {
         document.title = "Too late";
       }
-      
-      if (ui.root && window.matchMedia("(max-width: 700px)").matches) {
-        setStatus("Send in: " + remainingText, remaining > 0 ? "success" : "error");
-      }
-
+    
       if (remaining > 0 && remaining <= 1000) {
         ui.bar.style.background = CONFIG.timeColor;
       } else {
@@ -377,13 +397,15 @@
 
   function setStatus(message, type) {
     if (!ui.status) return;
-
+  
     ui.status.textContent = message || "";
     ui.status.className = "twsh-status";
-
+  
     if (type) {
       ui.status.classList.add("twsh-status-" + type);
     }
+  
+    ui.status.style.display = message ? "" : "none";
   }
 
   function getCommandDuration() {
@@ -584,7 +606,8 @@
       if (!arrivalMs) return;
 
       const commandName = cleanText(cells[0] ? cells[0].textContent : "Command");
-      const sendMs = arrivalMs - app.duration;
+      const effectiveArrivalMs = arrivalMs + getActiveOffsetMs();
+      const sendMs = effectiveArrivalMs - app.duration;
       const sendIn = sendMs - getServerNowMs();
 
       const tr = document.createElement("tr");
@@ -1030,7 +1053,7 @@
 
       .twsh-grid {
         display: grid;
-        grid-template-columns: 104px 44px 44px 44px 44px;
+        grid-template-columns: 104px 44px 44px 44px 44px auto;
         gap: 5px;
         align-items: end;
         margin-bottom: 6px;
@@ -1210,6 +1233,53 @@
         opacity: 0.8;
       }
 
+      .twsh-offset-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .twsh-field-remember {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      
+      .twsh-field-remember label {
+        margin: 0;
+      }
+      
+      .twsh-field-remember input[type="checkbox"] {
+        margin: 0;
+      }
+      
+      .twsh-offset-toggle,
+      .twsh-offset-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      
+      .twsh-offset-wrap {
+        display: inline-flex;
+        align-items: center;
+      }
+      
+      .twsh-countdown-value {
+        font-weight: bold;
+      }
+      
+      .twsh-countdown-late {
+        color: red;
+      }
+
+      .twsh-send-time-small {
+        font-size: 10px;
+        opacity: 0.8;
+        margin: -4px 0 6px 0;
+        text-align: right;
+      }
+
       @media (max-width: 700px) {
         #twactics-snipe-helper {
           max-width: 100%;
@@ -1365,11 +1435,6 @@
           line-height: 1.2;
         }
       
-        /* göm vanliga send-in raden på mobil */
-        .twsh-result-row:nth-child(2) {
-          display: none;
-        }
-      
         /* ---- STATUS / SEND IN ---- */
         .twsh-status {
           font-size: 10px;
@@ -1394,9 +1459,9 @@
         .twsh-buttons .btn {
           width: 50%;
           box-sizing: border-box;
-          font-size: 9px;       /* mindre text så de får plats */
-          padding: 2px 4px;
-          line-height: 1.15;
+          font-size: 8px;       /* mindre text så de får plats */
+          padding: 2px 2px;
+          line-height: 1;
           white-space: nowrap;
         }
       
@@ -1589,6 +1654,10 @@
     const progress = document.createElement("div");
     progress.className = "twsh-progress";
 
+    const sendTimeSmall = document.createElement("div");
+    sendTimeSmall.className = "twsh-send-time-small";
+    sendTimeSmall.textContent = "Send time: --";
+    
     const bar = document.createElement("div");
     bar.className = "twsh-bar";
 
@@ -1636,12 +1705,36 @@
     const options = document.createElement("div");
     options.className = "twsh-options";
     
-    const offsetLabel = document.createElement("label");
-    offsetLabel.textContent = "Target offset ms";
-    const offsetMs = createNumberInput("twsh-offset-ms", -9999, 9999, 0, "0");
-    offsetLabel.appendChild(offsetMs);
+    const offsetToggleLabel = document.createElement("label");
+    offsetToggleLabel.className = "twsh-offset-toggle";
     
-    options.appendChild(offsetLabel);
+    const offsetEnabled = document.createElement("input");
+    offsetEnabled.type = "checkbox";
+    offsetEnabled.id = "twsh-offset-enabled";
+    
+    offsetToggleLabel.appendChild(document.createTextNode("Offset? "));
+    offsetToggleLabel.appendChild(offsetEnabled);
+    
+    const offsetWrap = document.createElement("div");
+    offsetWrap.className = "twsh-offset-wrap";
+    offsetWrap.style.display = "none";
+    
+    const offsetLabel = document.createElement("label");
+    offsetLabel.className = "twsh-offset-label";
+    offsetLabel.textContent = "Target offset ms";
+    
+    const offsetMs = createNumberInput("twsh-offset-ms", -9999, 9999, 0, "0");
+    
+    offsetLabel.appendChild(offsetMs);
+    offsetWrap.appendChild(offsetLabel);
+    
+    options.appendChild(offsetToggleLabel);
+    options.appendChild(offsetWrap);
+    
+    offsetEnabled.addEventListener("change", function () {
+      offsetWrap.style.display = offsetEnabled.checked ? "" : "none";
+      updateFromInputs(true);
+    });
 
     const result = document.createElement("div");
     result.className = "twsh-result";
@@ -1670,7 +1763,6 @@
     countdownRow.appendChild(countdownLabel);
     countdownRow.appendChild(countdown);
 
-    result.appendChild(sendRow);
     result.appendChild(countdownRow);
 
     const buttons = document.createElement("div");
@@ -1693,7 +1785,8 @@
 
     const status = document.createElement("div");
     status.className = "twsh-status";
-    status.textContent = "Ready. Set target landing time.";
+    status.textContent = "";
+    status.style.display = "none";
 
     const notes = document.createElement("div");
     notes.className = "twsh-notes-wrap";
@@ -1723,11 +1816,12 @@
 
     root.appendChild(title);
     root.appendChild(progress);
+    root.appendChild(sendTimeSmall);
     root.appendChild(grid);
     root.appendChild(options);
     root.appendChild(result);
-    root.appendChild(status);
     root.appendChild(buttons);
+    root.appendChild(status);
     root.appendChild(notes);
     root.appendChild(footer);
 
@@ -1735,6 +1829,7 @@
 
     ui.root = root;
     ui.bar = bar;
+    ui.sendTimeSmall = sendTimeSmall;
     ui.currentTime = currentTime;
     ui.targetDate = targetDate;
     ui.targetHour = targetHour;
@@ -1742,6 +1837,8 @@
     ui.targetSecond = targetSecond;
     ui.targetMs = targetMs;
     ui.remember = remember;
+    ui.offsetEnabled = offsetEnabled;
+    ui.offsetWrap = offsetWrap;
     ui.offsetMs = offsetMs;
     ui.sendTime = sendTime;
     ui.countdown = countdown;
@@ -1771,6 +1868,8 @@
     const currentArrivalMs = parseArrivalTextToMs(document.getElementById("date_arrival").textContent);
 
     ui.offsetMs.value = settings && typeof settings.offsetMs !== "undefined" ? String(settings.offsetMs) : "0";
+    ui.offsetEnabled.checked = !!(settings && settings.offsetEnabled);
+    ui.offsetWrap.style.display = ui.offsetEnabled.checked ? "" : "none";
 
     if (settings && settings.remember && settings.date) {
       ui.remember.checked = true;
@@ -1844,7 +1943,7 @@
       });
     }
 
-    setStatus("Send in: " + formatDuration(app.sendMs - getServerNowMs()), "success");
+    setStatus("", "");
   }
 
   function waitForCommandConfirm() {
