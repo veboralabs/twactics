@@ -352,10 +352,16 @@
 
       ui.countdown.textContent = formatDuration(remaining);
 
+      const remainingText = formatDuration(remaining);
+
       if (remaining > 0) {
-        document.title = "Send in: " + formatDuration(remaining);
+        document.title = "Send in: " + remainingText;
       } else {
         document.title = "Too late";
+      }
+      
+      if (ui.root && window.matchMedia("(max-width: 700px)").matches) {
+        setStatus("Send in: " + remainingText, remaining > 0 ? "success" : "error");
       }
 
       if (remaining > 0 && remaining <= 1000) {
@@ -739,19 +745,149 @@
     return "";
   }
 
+  function getMonthNumber(monthName) {
+    const months = {
+      jan: 1,
+      january: 1,
+      feb: 2,
+      february: 2,
+      mar: 3,
+      march: 3,
+      apr: 4,
+      april: 4,
+      may: 5,
+      jun: 6,
+      june: 6,
+      jul: 7,
+      july: 7,
+      aug: 8,
+      august: 8,
+      sep: 9,
+      sept: 9,
+      september: 9,
+      oct: 10,
+      october: 10,
+      nov: 11,
+      november: 11,
+      dec: 12,
+      december: 12
+    };
+  
+    return months[String(monthName || "").toLowerCase()] || null;
+  }
+  
+  function normalizeParsedDate(year, month, day, hour, minute, second, ms) {
+    year = parseInt(year, 10);
+    month = parseInt(month, 10);
+    day = parseInt(day, 10);
+    hour = parseInt(hour, 10);
+    minute = parseInt(minute, 10);
+    second = parseInt(second, 10);
+    ms = parseInt(ms || "0", 10);
+  
+    if (year < 100) {
+      const currentYearPrefix = String(new Date(getServerNowMs()).getFullYear()).slice(0, 2);
+      year = parseInt(currentYearPrefix + pad(year), 10);
+    }
+  
+    if (
+      isNaN(year) ||
+      isNaN(month) ||
+      isNaN(day) ||
+      isNaN(hour) ||
+      isNaN(minute) ||
+      isNaN(second) ||
+      isNaN(ms)
+    ) {
+      return null;
+    }
+  
+    if (month < 1 || month > 12) return null;
+    if (day < 1 || day > 31) return null;
+    if (hour < 0 || hour > 23) return null;
+    if (minute < 0 || minute > 59) return null;
+    if (second < 0 || second > 59) return null;
+    if (ms < 0 || ms > 999) return null;
+  
+    return new Date(year, month - 1, day, hour, minute, second, ms).getTime();
+  }
+  
+  function extractDateTimeSuggestionsFromText(text) {
+    const suggestions = [];
+    const seen = new Set();
+    const raw = String(text || "");
+  
+    function addSuggestion(ms, sourceText) {
+      if (!ms || isNaN(ms)) return;
+  
+      const key = String(ms);
+      if (seen.has(key)) return;
+  
+      seen.add(key);
+  
+      suggestions.push({
+        ms: ms,
+        label: formatDateTime(ms, true),
+        source: cleanText(sourceText).slice(0, 160)
+      });
+    }
+  
+    const patterns = [
+      // May 01, 2026 12:12:12:844
+      {
+        regex: /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t|tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?\s+(\d{1,2}),?\s+(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})(?:[.:](\d{1,3}))?\b/gi,
+        parse: function (match) {
+          const month = getMonthNumber(match[1]);
+          return normalizeParsedDate(match[3], month, match[2], match[4], match[5], match[6], match[7]);
+        }
+      },
+  
+      // 2026-05-01 12:12:12:844
+      // 2026/05/01 12:12:12.844
+      {
+        regex: /\b(\d{4})[-/](\d{1,2})[-/](\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})(?:[.:](\d{1,3}))?\b/g,
+        parse: function (match) {
+          return normalizeParsedDate(match[1], match[2], match[3], match[4], match[5], match[6], match[7]);
+        }
+      },
+  
+      // 01/05/2026 12:12:12:844
+      // 01.05.2026 12:12:12.844
+      {
+        regex: /\b(\d{1,2})[./-](\d{1,2})[./-](\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})(?:[.:](\d{1,3}))?\b/g,
+        parse: function (match) {
+          return normalizeParsedDate(match[3], match[2], match[1], match[4], match[5], match[6], match[7]);
+        }
+      }
+    ];
+  
+    patterns.forEach(pattern => {
+      let match;
+  
+      while ((match = pattern.regex.exec(raw)) !== null) {
+        const ms = pattern.parse(match);
+        addSuggestion(ms, match[0]);
+      }
+    });
+  
+    suggestions.sort((a, b) => a.ms - b.ms);
+  
+    return suggestions;
+  }
+
   function renderVillageNotes(noteText) {
     ui.notes.innerHTML = "";
-
+  
     const box = document.createElement("div");
     box.className = "twsh-notes-box";
-
+  
     const title = document.createElement("div");
     title.className = "twsh-notes-title";
     title.textContent = "Village notes";
-
+  
     const content = document.createElement("div");
     content.className = "twsh-notes-content";
-
+  
     if (noteText) {
       content.textContent = noteText;
       setStatus("Village notes loaded.", "success");
@@ -759,10 +895,84 @@
       content.textContent = "No village note found, or the note could not be read from this page.";
       setStatus("No village note found.", "warn");
     }
-
+  
     box.appendChild(title);
     box.appendChild(content);
-
+  
+    if (noteText) {
+      const suggestions = extractDateTimeSuggestionsFromText(noteText);
+  
+      if (suggestions.length) {
+        const suggestionBox = document.createElement("div");
+        suggestionBox.className = "twsh-note-suggestions";
+  
+        const suggestionTitle = document.createElement("div");
+        suggestionTitle.className = "twsh-notes-title";
+        suggestionTitle.textContent = "Suggested landing times";
+  
+        const suggestionHelp = document.createElement("div");
+        suggestionHelp.className = "twsh-note-suggestions-help";
+        suggestionHelp.textContent =
+          "The script found possible arrival times in the village note. Click Use to set one as the target landing time.";
+  
+        const table = document.createElement("table");
+        table.className = "twsh-command-table";
+  
+        const thead = document.createElement("thead");
+        const headRow = document.createElement("tr");
+  
+        ["#", "Detected time", "Action"].forEach(label => {
+          const th = document.createElement("th");
+          th.textContent = label;
+          headRow.appendChild(th);
+        });
+  
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+  
+        const tbody = document.createElement("tbody");
+  
+        suggestions.forEach((suggestion, index) => {
+          const tr = document.createElement("tr");
+  
+          const numberCell = document.createElement("td");
+          numberCell.textContent = String(index + 1);
+  
+          const timeCell = document.createElement("td");
+          timeCell.textContent = suggestion.label;
+          timeCell.title = suggestion.source;
+  
+          const actionCell = document.createElement("td");
+  
+          const useButton = document.createElement("button");
+          useButton.type = "button";
+          useButton.className = "btn";
+          useButton.textContent = "Use";
+  
+          useButton.addEventListener("click", function () {
+            fillTargetFromMs(suggestion.ms, true);
+            setStatus("Village note time loaded as target landing time.", "success");
+          });
+  
+          actionCell.appendChild(useButton);
+  
+          tr.appendChild(numberCell);
+          tr.appendChild(timeCell);
+          tr.appendChild(actionCell);
+  
+          tbody.appendChild(tr);
+        });
+  
+        table.appendChild(tbody);
+  
+        suggestionBox.appendChild(suggestionTitle);
+        suggestionBox.appendChild(suggestionHelp);
+        suggestionBox.appendChild(table);
+  
+        box.appendChild(suggestionBox);
+      }
+    }
+  
     ui.notes.appendChild(box);
   }
 
@@ -987,198 +1197,330 @@
         background: #f0e2be;
       }
 
+      .twsh-note-suggestions {
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid #bd9c5a;
+      }
+      
+      .twsh-note-suggestions-help {
+        font-size: 11px;
+        line-height: 1.35;
+        margin-bottom: 6px;
+        opacity: 0.8;
+      }
+
       @media (max-width: 700px) {
-      #twactics-snipe-helper {
-        max-width: 100%;
-        overflow: hidden;
-        font-size: 11px;
-        padding: 7px;
+        #twactics-snipe-helper {
+          max-width: 100%;
+          overflow: hidden;
+          font-size: 10px;
+          padding: 5px;
+          margin-top: 5px;
+        }
+      
+        .twsh-title {
+          font-size: 12px;
+          margin-bottom: 3px;
+          line-height: 1.1;
+        }
+      
+        .twsh-progress {
+          height: 18px;
+          margin-bottom: 4px;
+        }
+      
+        .twsh-current-time {
+          line-height: 18px;
+          font-size: 11px;
+        }
+      
+        .twsh-grid {
+          display: grid;
+          grid-template-columns: 112px 1fr;
+          grid-template-areas:
+            "date date"
+            "hms hms"
+            "msremember msremember";
+          gap: 3px;
+          align-items: center;
+          margin-bottom: 3px;
+        }
+      
+        .twsh-field-date {
+          grid-area: date;
+          max-width: 112px;
+        }
+      
+        .twsh-field-date label {
+          display: none;
+        }
+      
+        .twsh-field-date .twsh-input {
+          height: 22px;
+          font-size: 10px;
+          padding: 1px 2px;
+        }
+      
+        .twsh-field-hh,
+        .twsh-field-mm,
+        .twsh-field-ss {
+          display: contents;
+        }
+      
+        .twsh-field-hh label,
+        .twsh-field-mm label,
+        .twsh-field-ss label {
+          display: inline;
+          font-size: 10px;
+          margin: 0 2px 0 0;
+          line-height: 22px;
+        }
+      
+        .twsh-field-hh .twsh-input,
+        .twsh-field-mm .twsh-input,
+        .twsh-field-ss .twsh-input {
+          width: 34px;
+          height: 22px;
+          font-size: 10px;
+          padding: 1px 2px;
+          display: inline-block;
+        }
+      
+        .twsh-field-hh {
+          grid-area: hms;
+        }
+      
+        .twsh-field-mm {
+          grid-area: hms;
+        }
+      
+        .twsh-field-ss {
+          grid-area: hms;
+        }
+      
+        .twsh-field-ms {
+          grid-area: msremember;
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          max-width: none;
+        }
+      
+        .twsh-field-ms label {
+          font-size: 10px;
+          margin: 0;
+          line-height: 22px;
+        }
+      
+        .twsh-field-ms .twsh-input {
+          width: 42px;
+          height: 22px;
+          font-size: 10px;
+          padding: 1px 2px;
+        }
+      
+        .twsh-options {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          margin: 2px 0 3px 0;
+          width: 100%;
+        }
+      
+        .twsh-options label {
+          font-size: 10px;
+          margin: 0;
+          line-height: 22px;
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+        }
+      
+        .twsh-options label:first-child {
+          order: -1;
+        }
+      
+        .twsh-options input[type="checkbox"] {
+          width: 16px;
+          height: 16px;
+          margin: 0;
+        }
+      
+        .twsh-options input[type="number"] {
+          width: 44px;
+          height: 22px;
+          font-size: 10px;
+          padding: 1px 2px;
+          margin: 0;
+        }
+      
+        .twsh-result {
+          padding: 3px 4px;
+          font-size: 10px;
+          margin-top: 3px;
+        }
+      
+        .twsh-result-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 4px;
+          margin: 0;
+          line-height: 1.2;
+        }
+      
+        .twsh-result-row strong {
+          display: inline;
+          margin: 0;
+          font-size: 10px;
+          white-space: nowrap;
+        }
+      
+        .twsh-result-row span {
+          display: inline;
+          text-align: right;
+          font-size: 10px;
+          line-height: 1.2;
+        }
+      
+        .twsh-result-row:nth-child(2) {
+          display: none;
+        }
+      
+        .twsh-buttons {
+          display: flex;
+          flex-direction: row;
+          gap: 4px;
+          margin-top: 4px;
+        }
+      
+        .twsh-buttons .btn {
+          width: 50%;
+          box-sizing: border-box;
+          font-size: 10px;
+          padding: 2px 4px;
+          line-height: 1.2;
+        }
+      
+        .twsh-status {
+          font-size: 10px;
+          padding: 3px 4px;
+          margin-top: 4px;
+          line-height: 1.2;
+        }
+      
+        .twsh-status::first-line {
+          font-weight: bold;
+        }
+      
+        .twsh-footer {
+          font-size: 8px;
+          margin-top: 4px;
+          padding-top: 3px;
+          line-height: 1.1;
+        }
+      
+        .twsh-notes-wrap {
+          margin-top: 4px;
+        }
+      
+        .twsh-notes-box {
+          padding: 4px;
+        }
+      
+        .twsh-notes-title {
+          font-size: 10px;
+          margin-bottom: 2px;
+        }
+      
+        .twsh-notes-content {
+          font-size: 10px;
+          line-height: 1.25;
+          max-height: 90px;
+          padding: 4px;
+        }
+      
+        .twsh-external-commands {
+          max-width: 100%;
+          overflow-x: auto;
+          font-size: 9px;
+          padding: 5px;
+        }
+      
+        .twsh-external-header {
+          font-size: 11px;
+          margin-bottom: 4px;
+        }
+      
+        .twsh-external-body {
+          max-height: 260px;
+          overflow-y: auto;
+          overflow-x: auto;
+        }
+      
+        .twsh-command-table {
+          width: 100%;
+          min-width: 0;
+          table-layout: fixed;
+          font-size: 9px;
+        }
+      
+        .twsh-command-table th,
+        .twsh-command-table td {
+          padding: 2px 1px;
+          word-break: break-word;
+          white-space: normal;
+          line-height: 1.15;
+        }
+      
+        .twsh-command-table th:nth-child(1),
+        .twsh-command-table td:nth-child(1) {
+          width: 24%;
+        }
+      
+        .twsh-command-table th:nth-child(2),
+        .twsh-command-table td:nth-child(2) {
+          width: 34%;
+        }
+      
+        .twsh-command-table th:nth-child(3),
+        .twsh-command-table td:nth-child(3) {
+          width: 25%;
+        }
+      
+        .twsh-command-table th:nth-child(4),
+        .twsh-command-table td:nth-child(4) {
+          width: 17%;
+        }
+      
+        .twsh-command-table .btn {
+          font-size: 9px;
+          padding: 1px 3px;
+          line-height: 1.1;
+        }
+      
+        .twsh-note-suggestions {
+          margin-top: 4px;
+          padding-top: 4px;
+        }
+      
+        .twsh-note-suggestions-help {
+          font-size: 9px;
+          margin-bottom: 4px;
+          line-height: 1.2;
+        }
+      
+        .twsh-note-suggestions .twsh-command-table {
+          font-size: 9px;
+          table-layout: fixed;
+        }
+      
+        .twsh-note-suggestions .twsh-command-table th,
+        .twsh-note-suggestions .twsh-command-table td {
+          padding: 2px 1px;
+        }
       }
-    
-      .twsh-title {
-        font-size: 14px;
-        margin-bottom: 5px;
-      }
-    
-      .twsh-progress {
-        height: 20px;
-        margin-bottom: 7px;
-      }
-    
-      .twsh-current-time {
-        line-height: 20px;
-        font-size: 12px;
-      }
-    
-      .twsh-grid {
-        display: grid;
-        grid-template-columns: 70px 70px 70px;
-        grid-template-areas:
-          "date date ."
-          "hh mm ss"
-          "ms ms .";
-        gap: 6px;
-        align-items: end;
-      }
-    
-      .twsh-field-date {
-        grid-area: date;
-        max-width: 145px;
-      }
-    
-      .twsh-field-hh {
-        grid-area: hh;
-      }
-    
-      .twsh-field-mm {
-        grid-area: mm;
-      }
-    
-      .twsh-field-ss {
-        grid-area: ss;
-      }
-    
-      .twsh-field-ms {
-        grid-area: ms;
-        max-width: 145px;
-      }
-    
-      .twsh-grid label,
-      .twsh-options label {
-        font-size: 11px;
-        margin-bottom: 2px;
-      }
-    
-      .twsh-input {
-        width: 100%;
-        min-width: 0;
-        font-size: 13px;
-        padding: 4px;
-        height: 29px;
-      }
-    
-      .twsh-options {
-        display: block;
-        margin: 6px 0;
-      }
-    
-      .twsh-options label {
-        margin-bottom: 6px;
-      }
-    
-      .twsh-options input[type="number"] {
-        width: 145px;
-        font-size: 13px;
-        padding: 4px;
-        height: 29px;
-        margin-top: 3px;
-      }
-    
-      .twsh-result {
-        padding: 6px;
-        font-size: 11px;
-      }
-    
-      .twsh-result-row {
-        display: block;
-        margin-bottom: 6px;
-      }
-    
-      .twsh-result-row:last-child {
-        margin-bottom: 0;
-      }
-    
-      .twsh-result-row strong {
-        display: block;
-        margin-bottom: 1px;
-      }
-    
-      .twsh-result-row span {
-        display: block;
-        text-align: right;
-        font-size: 12px;
-        line-height: 1.25;
-      }
-    
-      .twsh-buttons {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-      }
-    
-      .twsh-buttons .btn {
-        width: 100%;
-        box-sizing: border-box;
-        font-size: 12px;
-        padding: 4px 6px;
-      }
-    
-      .twsh-status {
-        font-size: 11px;
-        padding: 5px;
-      }
-    
-      .twsh-footer {
-        font-size: 9px;
-      }
-    
-      .twsh-external-commands {
-        max-width: 100%;
-        overflow-x: auto;
-        font-size: 10px;
-        padding: 6px;
-      }
-    
-      .twsh-external-header {
-        font-size: 12px;
-        margin-bottom: 5px;
-      }
-    
-      .twsh-external-body {
-        max-height: 320px;
-        overflow-y: auto;
-        overflow-x: auto;
-      }
-    
-      .twsh-command-table {
-        width: 100%;
-        min-width: 0;
-        table-layout: fixed;
-        font-size: 10px;
-      }
-    
-      .twsh-command-table th,
-      .twsh-command-table td {
-        padding: 3px 2px;
-        word-break: break-word;
-        white-space: normal;
-      }
-    
-      .twsh-command-table th:nth-child(1),
-      .twsh-command-table td:nth-child(1) {
-        width: 28%;
-      }
-    
-      .twsh-command-table th:nth-child(2),
-      .twsh-command-table td:nth-child(2) {
-        width: 31%;
-      }
-    
-      .twsh-command-table th:nth-child(3),
-      .twsh-command-table td:nth-child(3) {
-        width: 24%;
-      }
-    
-      .twsh-command-table th:nth-child(4),
-      .twsh-command-table td:nth-child(4) {
-        width: 17%;
-      }
-    
-      .twsh-command-table .btn {
-        font-size: 10px;
-        padding: 2px 4px;
-      }
-    }
     `;
 
     document.head.appendChild(style);
@@ -1313,13 +1655,13 @@
     const loadCommandsButton = document.createElement("button");
     loadCommandsButton.type = "button";
     loadCommandsButton.className = "btn";
-    loadCommandsButton.textContent = "Load target commands";
+    loadCommandsButton.textContent = "Show commands";
     loadCommandsButton.addEventListener("click", loadTargetCommands);
 
     const loadNotesButton = document.createElement("button");
     loadNotesButton.type = "button";
     loadNotesButton.className = "btn";
-    loadNotesButton.textContent = "Load village notes";
+    loadNotesButton.textContent = "Show notes";
     loadNotesButton.addEventListener("click", loadVillageNotes);
 
     buttons.appendChild(loadCommandsButton);
@@ -1478,7 +1820,7 @@
       });
     }
 
-    setStatus("Ready. Duration: " + formatDuration(app.duration), "success");
+    setStatus("Send in: " + formatDuration(app.sendMs - getServerNowMs()), "success");
   }
 
   function waitForCommandConfirm() {
