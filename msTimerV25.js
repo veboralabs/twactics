@@ -868,9 +868,26 @@
     $.get(url)
       .done(function (html) {
         const noteText = extractVillageNoteFromHtml(html);
+      
+        if (!noteText) {
+          if (ui.notes) {
+            ui.notes.innerHTML = "";
+            ui.notes.style.display = "none";
+          }
+      
+          app.notesVisible = false;
+      
+          if (ui.loadNotesButton) {
+            ui.loadNotesButton.textContent = "Show notes";
+          }
+      
+          setStatus("No village note found.", "warn");
+          return;
+        }
+      
         renderVillageNotes(noteText);
         app.notesVisible = true;
-  
+      
         if (ui.loadNotesButton) {
           ui.loadNotesButton.textContent = "Hide notes";
         }
@@ -897,8 +914,14 @@
   function extractNotebookNotesFromDoc(doc) {
     const candidates = [];
   
-    const notebookHeaders = Array.from(doc.querySelectorAll("th, td, div, span")).filter(function (el) {
-      return cleanText(el.textContent).toLowerCase() === "notebook:";
+    const notebookHeaders = Array.from(doc.querySelectorAll("th, td")).filter(function (el) {
+      const text = cleanText(el.textContent).toLowerCase();
+    
+      return (
+        text === "notebook:" ||
+        text === "notebook: edit" ||
+        text.startsWith("notebook:")
+      );
     });
   
     notebookHeaders.forEach(function (header) {
@@ -1280,7 +1303,7 @@
           useButton.addEventListener("click", function () {
             fillTargetFromMs(suggestion.ms, true);
             hideVillageNotes();
-            setStatus("Note time loaded as arrival landing time.", "success");
+            setStatus("Note time loaded as arrival time.", "success");
           });
   
           actionCell.appendChild(useButton);
@@ -2366,14 +2389,16 @@
   function checkAlarms(remaining) {
     if (remaining <= 0 || !isFinite(remaining)) return;
   
+    if (remaining <= 30000 && !app.alarm30Played) {
+      app.alarm30Played = true;
+      app.alarm60Played = true;
+      playBeepSequence(5);
+      return;
+    }
+  
     if (remaining <= 60000 && !app.alarm60Played) {
       app.alarm60Played = true;
       playBeepSequence(3);
-    }
-  
-    if (remaining <= 30000 && !app.alarm30Played) {
-      app.alarm30Played = true;
-      playBeepSequence(5);
     }
   }
   
