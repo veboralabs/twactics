@@ -1521,8 +1521,8 @@
           max-width: none !important;
           margin: 0 !important;
           box-sizing: border-box !important;
-          font-size: 10px !important;
-          padding: 2px 2px !important;
+          font-size: 11px !important;
+          padding: 3px 3px !important;
           line-height: 1 !important;
           white-space: nowrap !important;
         }
@@ -1670,8 +1670,8 @@
         }
         
         #twactics-snipe-helper .twsh-action-btn {
-          font-size: 10px !important;
-          padding: 2px 2px !important;
+          font-size: 11px !important;
+          padding: 3px 3px !important;
           line-height: 1 !important;
         }
       }
