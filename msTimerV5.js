@@ -1221,13 +1221,13 @@
       
         .twsh-title {
           font-size: 12px;
-          margin-bottom: 3px;
+          margin-bottom: 4px;
           line-height: 1.1;
         }
       
         .twsh-progress {
           height: 18px;
-          margin-bottom: 4px;
+          margin-bottom: 5px;
         }
       
         .twsh-current-time {
@@ -1235,21 +1235,22 @@
           font-size: 11px;
         }
       
+        /* ---- INPUT-DELEN ---- */
         .twsh-grid {
-          display: grid;
-          grid-template-columns: 112px 1fr;
-          grid-template-areas:
-            "date date"
-            "hms hms"
-            "msremember msremember";
-          gap: 3px;
+          display: flex;
+          flex-wrap: wrap;
           align-items: center;
-          margin-bottom: 3px;
+          gap: 4px 6px;
+          margin-bottom: 4px;
+        }
+      
+        .twsh-field {
+          min-width: 0;
+          margin: 0;
         }
       
         .twsh-field-date {
-          grid-area: date;
-          max-width: 112px;
+          width: 100%;
         }
       
         .twsh-field-date label {
@@ -1257,115 +1258,95 @@
         }
       
         .twsh-field-date .twsh-input {
+          width: 110px;
           height: 22px;
           font-size: 10px;
-          padding: 1px 2px;
+          padding: 1px 3px;
         }
       
         .twsh-field-hh,
         .twsh-field-mm,
-        .twsh-field-ss {
-          display: contents;
+        .twsh-field-ss,
+        .twsh-field-ms,
+        .twsh-field-remember {
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
         }
       
         .twsh-field-hh label,
         .twsh-field-mm label,
-        .twsh-field-ss label {
-          display: inline;
+        .twsh-field-ss label,
+        .twsh-field-ms label,
+        .twsh-field-remember label {
           font-size: 10px;
-          margin: 0 2px 0 0;
-          line-height: 22px;
+          margin: 0;
+          line-height: 1;
+          white-space: nowrap;
         }
       
+        /* HH MM SS på samma rad */
         .twsh-field-hh .twsh-input,
         .twsh-field-mm .twsh-input,
         .twsh-field-ss .twsh-input {
-          width: 34px;
+          width: 30px;   /* ca 10% mindre */
           height: 22px;
           font-size: 10px;
           padding: 1px 2px;
-          display: inline-block;
         }
       
-        .twsh-field-hh {
-          grid-area: hms;
-        }
-      
-        .twsh-field-mm {
-          grid-area: hms;
-        }
-      
-        .twsh-field-ss {
-          grid-area: hms;
-        }
-      
-        .twsh-field-ms {
-          grid-area: msremember;
-          display: inline-flex;
-          align-items: center;
-          gap: 3px;
-          max-width: none;
-        }
-      
-        .twsh-field-ms label {
-          font-size: 10px;
-          margin: 0;
-          line-height: 22px;
-        }
-      
+        /* MS lite mindre */
         .twsh-field-ms .twsh-input {
-          width: 42px;
+          width: 34px;   /* ca 20% mindre */
           height: 22px;
           font-size: 10px;
           padding: 1px 2px;
         }
       
+        .twsh-field-remember input[type="checkbox"] {
+          width: 15px;
+          height: 15px;
+          margin: 0;
+        }
+      
+        /* ---- OFFSET ---- */
         .twsh-options {
-          display: inline-flex;
+          display: flex;
           align-items: center;
-          gap: 6px;
-          margin: 2px 0 3px 0;
+          gap: 5px;
+          margin: 2px 0 4px 0;
           width: 100%;
         }
       
         .twsh-options label {
-          font-size: 10px;
-          margin: 0;
-          line-height: 22px;
           display: inline-flex;
           align-items: center;
-          gap: 3px;
-        }
-      
-        .twsh-options label:first-child {
-          order: -1;
-        }
-      
-        .twsh-options input[type="checkbox"] {
-          width: 16px;
-          height: 16px;
+          gap: 4px;
+          font-size: 10px;
           margin: 0;
+          white-space: nowrap;
         }
       
         .twsh-options input[type="number"] {
-          width: 44px;
+          width: 40px;
           height: 22px;
           font-size: 10px;
           padding: 1px 2px;
           margin: 0;
         }
       
+        /* ---- RESULT ---- */
         .twsh-result {
-          padding: 3px 4px;
+          padding: 4px 5px;
           font-size: 10px;
-          margin-top: 3px;
+          margin-top: 4px;
         }
       
         .twsh-result-row {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          gap: 4px;
+          gap: 6px;
           margin: 0;
           line-height: 1.2;
         }
@@ -1384,36 +1365,42 @@
           line-height: 1.2;
         }
       
+        /* göm vanliga send-in raden på mobil */
         .twsh-result-row:nth-child(2) {
           display: none;
         }
       
+        /* ---- STATUS / SEND IN ---- */
+        .twsh-status {
+          font-size: 10px;
+          padding: 4px 5px;
+          margin-top: 4px;
+          margin-bottom: 4px;
+          line-height: 1.2;
+        }
+      
+        .twsh-status strong {
+          font-weight: bold;
+        }
+      
+        /* ---- KNAPPAR ---- */
         .twsh-buttons {
           display: flex;
           flex-direction: row;
           gap: 4px;
-          margin-top: 4px;
+          margin-top: 0;
         }
       
         .twsh-buttons .btn {
           width: 50%;
           box-sizing: border-box;
-          font-size: 10px;
+          font-size: 9px;       /* mindre text så de får plats */
           padding: 2px 4px;
-          line-height: 1.2;
+          line-height: 1.15;
+          white-space: nowrap;
         }
       
-        .twsh-status {
-          font-size: 10px;
-          padding: 3px 4px;
-          margin-top: 4px;
-          line-height: 1.2;
-        }
-      
-        .twsh-status::first-line {
-          font-weight: bold;
-        }
-      
+        /* ---- FOOTER ---- */
         .twsh-footer {
           font-size: 8px;
           margin-top: 4px;
@@ -1441,6 +1428,7 @@
           padding: 4px;
         }
       
+        /* ---- EXTERNAL COMMAND TABLE ---- */
         .twsh-external-commands {
           max-width: 100%;
           overflow-x: auto;
@@ -1519,6 +1507,35 @@
         .twsh-note-suggestions .twsh-command-table th,
         .twsh-note-suggestions .twsh-command-table td {
           padding: 2px 1px;
+        }
+      
+        /* ---- TRIBALWARS EGNA COMMAND-TABLE LITE BRED/RYMLIGARE ---- */
+          #command-data-form {
+          min-width: 0 !important;
+          width: 100% !important;
+        }
+      
+        #command-data-form > div > table.vis:first-child {
+          width: 100% !important;
+          max-width: 100% !important;
+          table-layout: fixed;
+        }
+      
+        #command-data-form > div > table.vis:first-child > tbody > tr > td:first-child {
+          width: 24% !important;
+          white-space: nowrap;
+        }
+      
+        #command-data-form > div > table.vis:first-child > tbody > tr > td:last-child {
+          width: 76% !important;
+        }
+      
+        #date_arrival {
+          width: 100% !important;
+        }
+      
+        #twactics-snipe-helper {
+          width: 100% !important;
         }
       }
     `;
@@ -1600,23 +1617,30 @@
     grid.appendChild(createField("MM", targetMinute, "twsh-field-mm"));
     grid.appendChild(createField("SS", targetSecond, "twsh-field-ss"));
     grid.appendChild(createField("MS", targetMs, "twsh-field-ms"));
+    grid.appendChild(rememberField);
 
-    const options = document.createElement("div");
-    options.className = "twsh-options";
-
-    const rememberLabel = document.createElement("label");
     const remember = document.createElement("input");
     remember.type = "checkbox";
     remember.id = "twsh-remember";
-    rememberLabel.appendChild(document.createTextNode("Remember "));
-    rememberLabel.appendChild(remember);
-
+    
+    const rememberField = document.createElement("div");
+    rememberField.className = "twsh-field twsh-field-remember";
+    
+    const rememberLabel = document.createElement("label");
+    rememberLabel.textContent = "Remember";
+    rememberLabel.htmlFor = "twsh-remember";
+    
+    rememberField.appendChild(rememberLabel);
+    rememberField.appendChild(remember);
+    
+    const options = document.createElement("div");
+    options.className = "twsh-options";
+    
     const offsetLabel = document.createElement("label");
-    offsetLabel.textContent = "Target offset ms ";
+    offsetLabel.textContent = "Target offset ms";
     const offsetMs = createNumberInput("twsh-offset-ms", -9999, 9999, 0, "0");
     offsetLabel.appendChild(offsetMs);
-
-    options.appendChild(rememberLabel);
+    
     options.appendChild(offsetLabel);
 
     const result = document.createElement("div");
@@ -1702,8 +1726,8 @@
     root.appendChild(grid);
     root.appendChild(options);
     root.appendChild(result);
-    root.appendChild(buttons);
     root.appendChild(status);
+    root.appendChild(buttons);
     root.appendChild(notes);
     root.appendChild(footer);
 
