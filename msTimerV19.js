@@ -1434,8 +1434,6 @@
       #command-data-form > div > table.vis:first-child {
         width: 60% !important;
         max-width: 60% !important;
-        margin-left: auto !important;
-        margin-right: auto !important;
       }
       
       #date_arrival {
@@ -1508,10 +1506,17 @@
       
         .twsh-field-date {
           width: 100%;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
         }
       
         .twsh-field-date label {
-          display: none;
+          display: inline;
+          font-size: 10px;
+          margin: 0;
+          line-height: 1;
+          white-space: nowrap;
         }
       
         .twsh-field-date .twsh-input {
@@ -1775,9 +1780,6 @@
         #command-data-form > div > table.vis:first-child {
           width: 90% !important;
           max-width: 90% !important;
-          margin-left: auto !important;
-          margin-right: auto !important;
-          table-layout: fixed;
         }
       
         #command-data-form > div > table.vis:first-child > tbody > tr > td:first-child {
