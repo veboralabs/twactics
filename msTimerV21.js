@@ -476,9 +476,6 @@
     commandSummaryTable.style.width = wantedWidth;
     commandSummaryTable.style.maxWidth = wantedWidth;
     commandSummaryTable.style.boxSizing = "border-box";
-    commandSummaryTable.style.marginLeft = "auto";
-    commandSummaryTable.style.marginRight = "auto";
-    commandSummaryTable.style.tableLayout = "fixed";
   
     const dateArrival = document.getElementById("date_arrival");
     if (dateArrival) {
