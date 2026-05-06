@@ -1117,7 +1117,8 @@
   
           useButton.addEventListener("click", function () {
             fillTargetFromMs(suggestion.ms, true);
-            setStatus("Village note time loaded as target landing time.", "success");
+            hideVillageNotes();
+            setStatus("Note time loaded as arrival landing time.", "success");
           });
   
           actionCell.appendChild(useButton);
@@ -1215,9 +1216,8 @@
         min-width: 0;
       }
 
-      .twsh-grid label,
-      .twsh-options label {
-        display: block;
+      .twsh-grid label {
+        display: inline-flex;
         font-weight: bold;
         margin-bottom: 2px;
       }
@@ -1227,6 +1227,7 @@
         padding: 4px;
         border: 1px solid #7d510f;
         background: #fffaf0;
+        height: 24px;
       }
 
       .twsh-options {
