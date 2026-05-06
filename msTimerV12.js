@@ -418,6 +418,31 @@
     return 0;
   }
 
+  function makeCommandSummaryTableResponsive() {
+    const form = document.getElementById("command-data-form");
+    if (!form) return;
+  
+    const commandSummaryTable = form.querySelector("div > table.vis:first-child");
+    if (!commandSummaryTable) return;
+  
+    commandSummaryTable.setAttribute("width", "100%");
+    commandSummaryTable.style.width = "100%";
+    commandSummaryTable.style.maxWidth = "100%";
+    commandSummaryTable.style.boxSizing = "border-box";
+  
+    const dateArrival = document.getElementById("date_arrival");
+    if (dateArrival) {
+      dateArrival.style.width = "100%";
+      dateArrival.style.maxWidth = "100%";
+      dateArrival.style.boxSizing = "border-box";
+    }
+  
+    form.style.minWidth = "0";
+    form.style.width = "100%";
+    form.style.maxWidth = "100%";
+    form.style.boxSizing = "border-box";
+  }
+
   function getTargetVillageId() {
     const form = document.getElementById("command-data-form");
     if (!form) return null;
@@ -1007,7 +1032,11 @@
 
     style.textContent = `
       #twactics-snipe-helper {
-        margin-top: 8px;
+        display: block;
+        width: auto;
+        max-width: 100%;
+        box-sizing: border-box;
+        margin: 8px 0 0 0;
         padding: 8px;
         border: 1px solid #7d510f;
         background: #f4e4bc;
@@ -1015,7 +1044,8 @@
         font-family: Verdana, Arial, sans-serif;
         font-size: 12px;
       }
-
+      
+      #twactics-snipe-helper,
       #twactics-snipe-helper * {
         box-sizing: border-box;
       }
@@ -1282,11 +1312,35 @@
 
       @media (max-width: 700px) {
         #twactics-snipe-helper {
-          max-width: 100%;
-          overflow: hidden;
+          display: block;
+          width: auto !important;
+          max-width: 100% !important;
+          box-sizing: border-box !important;
+          overflow: visible !important;
           font-size: 10px;
           padding: 5px;
-          margin-top: 5px;
+          margin: 5px 0 0 0 !important;
+        }
+
+        #twactics-snipe-helper .twsh-grid,
+        #twactics-snipe-helper .twsh-options,
+        #twactics-snipe-helper .twsh-result,
+        #twactics-snipe-helper .twsh-buttons,
+        #twactics-snipe-helper .twsh-footer,
+        #twactics-snipe-helper .twsh-notes-wrap,
+        #twactics-snipe-helper .twsh-notes-box,
+        #twactics-snipe-helper .twsh-note-suggestions {
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+        }
+        
+        #twactics-snipe-helper input,
+        #twactics-snipe-helper button,
+        #twactics-snipe-helper select,
+        #twactics-snipe-helper textarea {
+          max-width: 100%;
+          min-width: 0;
         }
       
         .twsh-title {
@@ -1355,19 +1409,12 @@
           white-space: nowrap;
         }
       
-        /* HH MM SS på samma rad */
+        /* MS lite mindre */
         .twsh-field-hh .twsh-input,
         .twsh-field-mm .twsh-input,
-        .twsh-field-ss .twsh-input {
-          width: 30px;   /* ca 10% mindre */
-          height: 22px;
-          font-size: 10px;
-          padding: 1px 2px;
-        }
-      
-        /* MS lite mindre */
+        .twsh-field-ss .twsh-input,
         .twsh-field-ms .twsh-input {
-          width: 34px;   /* ca 20% mindre */
+          width: 30px;
           height: 22px;
           font-size: 10px;
           padding: 1px 2px;
@@ -1456,13 +1503,28 @@
           margin-top: 0;
         }
       
-        .twsh-buttons .btn {
-          width: 50%;
-          box-sizing: border-box;
-          font-size: 8px !important;       /* mindre text så de får plats */
-          padding: 2px 2px;
-          line-height: 1;
-          white-space: nowrap;
+        .twsh-buttons {
+          display: flex;
+          flex-direction: row;
+          flex-wrap: nowrap;
+          gap: 4px;
+          margin-top: 0;
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+        }
+        
+        .twsh-buttons .twsh-action-btn {
+          flex: 1 1 0;
+          width: auto !important;
+          min-width: 0 !important;
+          max-width: none !important;
+          margin: 0 !important;
+          box-sizing: border-box !important;
+          font-size: 8px !important;
+          padding: 2px 1px !important;
+          line-height: 1 !important;
+          white-space: nowrap !important;
         }
       
         /* ---- FOOTER ---- */
@@ -1579,10 +1641,6 @@
           min-width: 0 !important;
           width: 100% !important;
         }
-
-         .vis {
-          width: 100% !important;
-          }
       
         #command-data-form > div > table.vis:first-child {
           width: 100% !important;
@@ -1605,6 +1663,12 @@
       
         #twactics-snipe-helper {
           width: 100% !important;
+        }
+        
+        #twactics-snipe-helper .twsh-action-btn {
+          font-size: 8px !important;
+          padding: 2px 2px !important;
+          line-height: 1 !important;
         }
       }
     `;
@@ -1638,6 +1702,36 @@
     wrap.appendChild(input);
 
     return wrap;
+  }
+
+  function setupSmartTimeInput(input, nextInput, maxLength) {
+    input.addEventListener("focus", function () {
+      setTimeout(function () {
+        input.select();
+      }, 0);
+    });
+  
+    input.addEventListener("click", function () {
+      input.select();
+    });
+  
+    input.addEventListener("input", function () {
+      const value = String(input.value || "").replace(/\D/g, "");
+  
+      if (value !== input.value) {
+        input.value = value;
+      }
+  
+      if (nextInput && value.length >= maxLength) {
+        nextInput.focus();
+  
+        setTimeout(function () {
+          nextInput.select();
+        }, 0);
+      }
+  
+      updateFromInputs(true);
+    });
   }
 
   function buildUi() {
@@ -1704,7 +1798,6 @@
     grid.appendChild(createField("MM", targetMinute, "twsh-field-mm"));
     grid.appendChild(createField("SS", targetSecond, "twsh-field-ss"));
     grid.appendChild(createField("MS", targetMs, "twsh-field-ms"));
-    grid.appendChild(rememberField);
     
     const options = document.createElement("div");
     options.className = "twsh-options";
@@ -1774,13 +1867,13 @@
 
     const loadCommandsButton = document.createElement("button");
     loadCommandsButton.type = "button";
-    loadCommandsButton.className = "btn";
+    loadCommandsButton.className = "btn twsh-action-btn";
     loadCommandsButton.textContent = "Show commands";
     loadCommandsButton.addEventListener("click", loadTargetCommands);
 
     const loadNotesButton = document.createElement("button");
     loadNotesButton.type = "button";
-    loadNotesButton.className = "btn";
+    loadNotesButton.className = "btn twsh-action-btn";
     loadNotesButton.textContent = "Show notes";
     loadNotesButton.addEventListener("click", loadVillageNotes);
 
@@ -1822,6 +1915,7 @@
     root.appendChild(progress);
     root.appendChild(sendTimeSmall);
     root.appendChild(grid);
+    root.appendChild(rememberField);
     root.appendChild(options);
     root.appendChild(result);
     root.appendChild(buttons);
@@ -1849,17 +1943,17 @@
     ui.status = status;
     ui.notes = notes;
 
-    [
-      targetDate,
-      targetHour,
-      targetMinute,
-      targetSecond,
-      targetMs,
-      offsetMs
-    ].forEach(input => {
-      input.addEventListener("input", function () {
-        updateFromInputs(true);
-      });
+    targetDate.addEventListener("input", function () {
+      updateFromInputs(true);
+    });
+    
+    setupSmartTimeInput(targetHour, targetMinute, 2);
+    setupSmartTimeInput(targetMinute, targetSecond, 2);
+    setupSmartTimeInput(targetSecond, targetMs, 2);
+    setupSmartTimeInput(targetMs, null, 3);
+    
+    offsetMs.addEventListener("input", function () {
+      updateFromInputs(true);
     });
 
     remember.addEventListener("change", function () {
@@ -1926,6 +2020,7 @@
 
     buildUi();
     applyInitialValues();
+    makeCommandSummaryTableResponsive();
 
     if (CONFIG.timeBarWidth) {
       $("#command-data-form .vis:first, #date_arrival").width(CONFIG.timeBarWidth);
