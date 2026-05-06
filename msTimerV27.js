@@ -1200,16 +1200,125 @@
   
     return new Date(year, month - 1, day, hour, minute, second, ms).getTime();
   }
+
+  function getCurrentPlayerName() {
+    if (
+      typeof game_data !== "undefined" &&
+      game_data.player &&
+      game_data.player.name
+    ) {
+      return game_data.player.name;
+    }
+  
+    return "You";
+  }
+  
+  function cleanNoteAuthor(value) {
+    const author = cleanText(value)
+      .replace(/[:,-]+$/g, "")
+      .trim();
+  
+    if (!author) return "Unknown";
+  
+    const lower = author.toLowerCase();
+  
+    const blocked = [
+      "created",
+      "edited",
+      "notebook",
+      "edit",
+      "today",
+      "yesterday",
+      "tomorrow"
+    ];
+  
+    if (blocked.includes(lower)) {
+      return "Unknown";
+    }
+  
+    return author;
+  }
+  
+  function getNoteAuthorMarkers(rawText) {
+    const raw = String(rawText || "");
+    const markers = [];
+  
+    function addMarker(index, author) {
+      if (index < 0) return;
+  
+      markers.push({
+        index: index,
+        author: author || "Unknown"
+      });
+    }
+  
+    // Own note, e.g. "Created: today at 12:26:24"
+    const ownNoteRegex =
+      /\bCreated:\s+(?:today|yesterday|tomorrow|\d{1,2}[./]\d{1,2}[./]\d{2,4})\s+at\s+\d{1,2}:\d{2}:\d{2}/gi;
+  
+    let ownMatch;
+  
+    while ((ownMatch = ownNoteRegex.exec(raw)) !== null) {
+      addMarker(ownMatch.index, getCurrentPlayerName());
+    }
+  
+    // Shared note, e.g. "entz0 today at 13:23:03"
+    const sharedRelativeRegex =
+      /(?:^|\s)([A-Za-z0-9_. \-[\](){}]{1,40}?)\s+(today|yesterday|tomorrow)\s+at\s+\d{1,2}:\d{2}:\d{2}/gi;
+  
+    let relativeMatch;
+  
+    while ((relativeMatch = sharedRelativeRegex.exec(raw)) !== null) {
+      const author = cleanNoteAuthor(relativeMatch[1]);
+  
+      if (author !== "Unknown") {
+        addMarker(relativeMatch.index + relativeMatch[0].indexOf(relativeMatch[1]), author);
+      }
+    }
+  
+    // Shared note, e.g. "Bibster on 03.05.2026 at 13:33:40"
+    const sharedDateRegex =
+      /(?:^|\s)([A-Za-z0-9_. \-[\](){}]{1,40}?)\s+on\s+\d{1,2}[./]\d{1,2}[./]\d{2,4}\s+at\s+\d{1,2}:\d{2}:\d{2}/gi;
+  
+    let dateMatch;
+  
+    while ((dateMatch = sharedDateRegex.exec(raw)) !== null) {
+      const author = cleanNoteAuthor(dateMatch[1]);
+  
+      if (author !== "Unknown") {
+        addMarker(dateMatch.index + dateMatch[0].indexOf(dateMatch[1]), author);
+      }
+    }
+  
+    markers.sort((a, b) => a.index - b.index);
+  
+    return markers;
+  }
+  
+  function getNoteAuthorForIndex(markers, index) {
+    let author = "Unknown";
+  
+    markers.forEach(function (marker) {
+      if (marker.index <= index) {
+        author = marker.author;
+      }
+    });
+  
+    return author;
+  }
   
   function extractDateTimeSuggestionsFromText(text) {
     const suggestions = [];
     const seen = new Set();
     const raw = String(text || "");
+    const authorMarkers = getNoteAuthorMarkers(raw);
   
-    function addSuggestion(ms, sourceText) {
+    function addSuggestion(ms, sourceText, author) {
       if (!ms || isNaN(ms)) return;
   
-      const key = String(ms);
+      const cleanAuthor = author || "Unknown";
+      const key = String(ms) + "|" + cleanAuthor;
+  
       if (seen.has(key)) return;
   
       seen.add(key);
@@ -1217,6 +1326,7 @@
       suggestions.push({
         ms: ms,
         label: formatDateTime(ms, true),
+        author: cleanAuthor,
         source: cleanText(sourceText).slice(0, 160)
       });
     }
@@ -1255,7 +1365,9 @@
   
       while ((match = pattern.regex.exec(raw)) !== null) {
         const ms = pattern.parse(match);
-        addSuggestion(ms, match[0]);
+        const author = getNoteAuthorForIndex(authorMarkers, match.index);
+  
+        addSuggestion(ms, match[0], author);
       }
     });
   
@@ -1311,7 +1423,7 @@
         const thead = document.createElement("thead");
         const headRow = document.createElement("tr");
   
-        ["#", "Detected time", "Action"].forEach(label => {
+        ["#", "Player", "Detected time", "Action"].forEach(label => {
           const th = document.createElement("th");
           th.textContent = label;
           headRow.appendChild(th);
@@ -1327,11 +1439,14 @@
   
           const numberCell = document.createElement("td");
           numberCell.textContent = String(index + 1);
-  
+          
+          const authorCell = document.createElement("td");
+          authorCell.textContent = suggestion.author || "Unknown";
+          
           const timeCell = document.createElement("td");
           timeCell.textContent = suggestion.label;
           timeCell.title = suggestion.source;
-  
+          
           const actionCell = document.createElement("td");
   
           const useButton = document.createElement("button");
@@ -1348,6 +1463,7 @@
           actionCell.appendChild(useButton);
   
           tr.appendChild(numberCell);
+          tr.appendChild(authorCell);
           tr.appendChild(timeCell);
           tr.appendChild(actionCell);
   
