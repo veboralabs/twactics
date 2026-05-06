@@ -1612,13 +1612,6 @@
     const targetSecond = createNumberInput("twsh-target-second", 0, 59, 0, "SS");
     const targetMs = createNumberInput("twsh-target-ms", 0, 999, 0, "MS");
 
-    grid.appendChild(createField("Date", targetDate, "twsh-field-date"));
-    grid.appendChild(createField("HH", targetHour, "twsh-field-hh"));
-    grid.appendChild(createField("MM", targetMinute, "twsh-field-mm"));
-    grid.appendChild(createField("SS", targetSecond, "twsh-field-ss"));
-    grid.appendChild(createField("MS", targetMs, "twsh-field-ms"));
-    grid.appendChild(rememberField);
-
     const remember = document.createElement("input");
     remember.type = "checkbox";
     remember.id = "twsh-remember";
@@ -1632,6 +1625,13 @@
     
     rememberField.appendChild(rememberLabel);
     rememberField.appendChild(remember);
+    
+    grid.appendChild(createField("Date", targetDate, "twsh-field-date"));
+    grid.appendChild(createField("HH", targetHour, "twsh-field-hh"));
+    grid.appendChild(createField("MM", targetMinute, "twsh-field-mm"));
+    grid.appendChild(createField("SS", targetSecond, "twsh-field-ss"));
+    grid.appendChild(createField("MS", targetMs, "twsh-field-ms"));
+    grid.appendChild(rememberField);
     
     const options = document.createElement("div");
     options.className = "twsh-options";
