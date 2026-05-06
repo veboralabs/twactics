@@ -30,7 +30,11 @@
     clockOffset: 0,
     duration: 0,
     targetMs: null,
-    sendMs: null
+    sendMs: null,
+    commandsVisible: false,
+    notesVisible: false,
+    alarm60Played: false,
+    alarm30Played: false
   };
 
   const ui = {};
@@ -46,6 +50,36 @@
         : window.location.hostname;
 
     return world + "_twactics_snipe_helper";
+  }
+
+  function getDestinationKey() {
+    const form = document.getElementById("command-data-form");
+    if (!form) return "unknown_target";
+  
+    const villageAnchor = form.querySelector(".village_anchor");
+    const villageId =
+      villageAnchor && villageAnchor.getAttribute("data-id")
+        ? villageAnchor.getAttribute("data-id")
+        : getTargetVillageId();
+  
+    const villageText = villageAnchor ? cleanText(villageAnchor.textContent) : "";
+    const coordsMatch = villageText.match(/\((\d+\|\d+)\)/);
+    const coords = coordsMatch ? coordsMatch[1] : "";
+  
+    return "target_" + (villageId || coords || cleanText(villageText) || "unknown");
+  }
+  
+  function getStoredTargets(settings) {
+    if (!settings || !settings.targets || typeof settings.targets !== "object") {
+      return {};
+    }
+  
+    return settings.targets;
+  }
+  
+  function getRememberedTarget(settings) {
+    const targets = getStoredTargets(settings);
+    return targets[getDestinationKey()] || null;
   }
 
   function cleanText(value) {
@@ -204,22 +238,30 @@
 
   function saveSettings() {
     try {
+      const oldSettings = loadSettings() || {};
+      const targets = getStoredTargets(oldSettings);
       const remember = ui.remember.checked;
-
+      const destinationKey = getDestinationKey();
+  
       const data = {
         remember: remember,
         offsetEnabled: ui.offsetEnabled.checked,
-        offsetMs: clampNumber(ui.offsetMs.value, -9999, 9999, 0)
+        offsetMs: clampNumber(ui.offsetMs.value, -9999, 9999, 0),
+        targets: targets
       };
-
+  
       if (remember && app.targetMs !== null && !isNaN(app.targetMs)) {
-        data.date = ui.targetDate.value;
-        data.hour = clampNumber(ui.targetHour.value, 0, 23, 0);
-        data.minute = clampNumber(ui.targetMinute.value, 0, 59, 0);
-        data.second = clampNumber(ui.targetSecond.value, 0, 59, 0);
-        data.ms = clampNumber(ui.targetMs.value, 0, 999, 0);
+        targets[destinationKey] = {
+          date: ui.targetDate.value,
+          hour: clampNumber(ui.targetHour.value, 0, 23, 0),
+          minute: clampNumber(ui.targetMinute.value, 0, 59, 0),
+          second: clampNumber(ui.targetSecond.value, 0, 59, 0),
+          ms: clampNumber(ui.targetMs.value, 0, 999, 0)
+        };
+      } else {
+        delete targets[destinationKey];
       }
-
+  
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch (err) {
       console.warn(SCRIPT_NAME + " could not save settings:", err);
@@ -287,6 +329,7 @@
     const effectiveTargetMs = targetMs + activeOffsetMs;
   
     app.sendMs = effectiveTargetMs - app.duration;
+    resetAlarms();
   
     ui.sendTime.textContent = formatDateTime(app.sendMs, true);
   
@@ -373,6 +416,7 @@
 
     if (app.sendMs !== null && !isNaN(app.sendMs)) {
       const remaining = app.sendMs - now;
+      checkAlarms(remaining);
       const remainingText = formatDuration(remaining);
     
       ui.countdown.textContent = remainingText;
@@ -425,10 +469,16 @@
     const commandSummaryTable = form.querySelector("div > table.vis:first-child");
     if (!commandSummaryTable) return;
   
-    commandSummaryTable.setAttribute("width", "100%");
-    commandSummaryTable.style.width = "100%";
-    commandSummaryTable.style.maxWidth = "100%";
+    const isMobile = window.matchMedia("(max-width: 700px)").matches;
+    const wantedWidth = isMobile ? "90%" : "60%";
+  
+    commandSummaryTable.setAttribute("width", wantedWidth);
+    commandSummaryTable.style.width = wantedWidth;
+    commandSummaryTable.style.maxWidth = wantedWidth;
     commandSummaryTable.style.boxSizing = "border-box";
+    commandSummaryTable.style.marginLeft = "auto";
+    commandSummaryTable.style.marginRight = "auto";
+    commandSummaryTable.style.tableLayout = "fixed";
   
     const dateArrival = document.getElementById("date_arrival");
     if (dateArrival) {
@@ -461,27 +511,53 @@
   }
 
   function loadTargetCommands() {
+    if (app.commandsVisible) {
+      hideTargetCommands();
+      return;
+    }
+  
     const villageId = getTargetVillageId();
-
+  
     if (!villageId) {
       setStatus("Could not find target village ID.", "error");
       return;
     }
-
+  
     const url =
       typeof game_data !== "undefined" && game_data.link_base_pure
         ? game_data.link_base_pure + "info_village&id=" + villageId
         : "/game.php?screen=info_village&id=" + villageId;
-
+  
     setStatus("Loading target village commands...", "warn");
-
+  
     $.get(url)
       .done(function (html) {
         renderTargetCommands(html);
+        app.commandsVisible = true;
+  
+        if (ui.loadCommandsButton) {
+          ui.loadCommandsButton.textContent = "Hide commands";
+        }
       })
       .fail(function () {
         setStatus("Could not load target village commands.", "error");
       });
+  }
+  
+  function hideTargetCommands() {
+    const externalBox = document.getElementById("twactics-snipe-helper-commands");
+  
+    if (externalBox) {
+      externalBox.style.display = "none";
+    }
+  
+    app.commandsVisible = false;
+  
+    if (ui.loadCommandsButton) {
+      ui.loadCommandsButton.textContent = "Show commands";
+    }
+  
+    setStatus("Target commands hidden.", "success");
   }
 
   function findArrivalColumnIndex(table) {
@@ -542,33 +618,34 @@
 
   function ensureExternalCommandsHost() {
     let box = document.getElementById("twactics-snipe-helper-commands");
-
+  
     if (box) {
+      box.style.display = "";
       return box.querySelector(".twsh-external-body");
     }
-
+  
     const anchor = getExternalCommandsAnchor();
-
+  
     box = document.createElement("div");
     box.id = "twactics-snipe-helper-commands";
     box.className = "twsh-external-commands";
-
+  
     const header = document.createElement("div");
     header.className = "twsh-external-header";
     header.textContent = "Target commands";
-
+  
     const body = document.createElement("div");
     body.className = "twsh-external-body";
-
+  
     box.appendChild(header);
     box.appendChild(body);
-
+  
     if (anchor.after && anchor.after.nextSibling) {
       anchor.parent.insertBefore(box, anchor.after.nextSibling);
     } else {
       anchor.parent.appendChild(box);
     }
-
+  
     return body;
   }
 
@@ -682,70 +759,76 @@
   }
 
   function loadVillageNotes() {
+    if (app.notesVisible) {
+      hideVillageNotes();
+      return;
+    }
+  
     const villageId = getTargetVillageId();
-
+  
     if (!villageId) {
       setStatus("Could not find target village ID.", "error");
       return;
     }
-
+  
     const url =
       typeof game_data !== "undefined" && game_data.link_base_pure
         ? game_data.link_base_pure + "info_village&id=" + villageId
         : "/game.php?screen=info_village&id=" + villageId;
-
+  
     setStatus("Loading village notes...", "warn");
-
+  
     $.get(url)
       .done(function (html) {
         const noteText = extractVillageNoteFromHtml(html);
         renderVillageNotes(noteText);
+        app.notesVisible = true;
+  
+        if (ui.loadNotesButton) {
+          ui.loadNotesButton.textContent = "Hide notes";
+        }
       })
       .fail(function () {
         setStatus("Could not load village notes.", "error");
       });
   }
+  
+  function hideVillageNotes() {
+    if (ui.notes) {
+      ui.notes.style.display = "none";
+    }
+  
+    app.notesVisible = false;
+  
+    if (ui.loadNotesButton) {
+      ui.loadNotesButton.textContent = "Show notes";
+    }
+  
+    setStatus("Village notes hidden.", "success");
+  }
 
   function extractVillageNoteFromHtml(html) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
-
-    const selectors = [
-      "textarea[name='note']",
-      "textarea[name='village_note']",
-      "textarea[name='village_notes']",
-      "#village_note textarea",
-      "#village_notes textarea",
-      "#village_note",
-      "#village_notes",
-      "#village_note_body",
-      ".village_note",
-      ".village_notes",
-      ".village-note",
-      ".village-notes",
-      ".village-note-body",
-      ".quickedit-village-note .quickedit-label",
-      ".quickedit-village-notes .quickedit-label"
-    ];
-
-    function getElementText(el) {
+  
+    function getText(el) {
       if (!el) return "";
-
+  
       if (typeof el.value === "string") {
         return cleanText(el.value);
       }
-
+  
       return cleanText(el.textContent);
     }
-
+  
     function isUsefulNoteText(text) {
       const value = cleanText(text);
       const lower = value.toLowerCase();
-
+  
       if (!value) return false;
-      if (value.length > 2500) return false;
-
-      const blocked = [
+      if (value.length > 2000) return false;
+  
+      const blockedExact = [
         "note",
         "notes",
         "village note",
@@ -757,39 +840,76 @@
         "no note",
         "no notes"
       ];
-
-      if (blocked.includes(lower)) return false;
-
+  
+      if (blockedExact.includes(lower)) return false;
+  
+      const blockedIncludes = [
+        "bbcodes.init",
+        "ajax_unit_url",
+        "ajax_building_url",
+        "very small",
+        "small normal large",
+        "normal large very large",
+        "close text",
+        "document.ready",
+        "<![cdata"
+      ];
+  
+      for (let i = 0; i < blockedIncludes.length; i++) {
+        if (lower.includes(blockedIncludes[i])) {
+          return false;
+        }
+      }
+  
       return true;
     }
-
-    for (let i = 0; i < selectors.length; i++) {
-      const el = doc.querySelector(selectors[i]);
-      const text = getElementText(el);
-
+  
+    // 1. First: only trust actual textarea values.
+    // If the textarea exists but is empty, that usually means "no note".
+    const textareaSelectors = [
+      "textarea[name='note']",
+      "textarea[name='village_note']",
+      "textarea[name='village_notes']",
+      "#village_note textarea",
+      "#village_notes textarea"
+    ];
+  
+    for (let i = 0; i < textareaSelectors.length; i++) {
+      const textarea = doc.querySelector(textareaSelectors[i]);
+  
+      if (textarea) {
+        const text = getText(textarea);
+        return isUsefulNoteText(text) ? text : "";
+      }
+    }
+  
+    // 2. Then try known display containers, but remove scripts/toolbars first.
+    const displaySelectors = [
+      "#village_note_body",
+      ".village-note-body",
+      ".village_note_body",
+      ".quickedit-village-note .quickedit-label",
+      ".quickedit-village-notes .quickedit-label"
+    ];
+  
+    for (let i = 0; i < displaySelectors.length; i++) {
+      const el = doc.querySelector(displaySelectors[i]);
+  
+      if (!el) continue;
+  
+      const clone = el.cloneNode(true);
+  
+      Array.from(clone.querySelectorAll("script, style, textarea, input, button, select, option")).forEach(node => {
+        node.remove();
+      });
+  
+      const text = getText(clone);
+  
       if (isUsefulNoteText(text)) {
         return text;
       }
     }
-
-    const fallbackElements = Array.from(doc.querySelectorAll("[id], [class], textarea"));
-
-    for (let i = 0; i < fallbackElements.length; i++) {
-      const el = fallbackElements[i];
-      const id = String(el.id || "").toLowerCase();
-      const className = String(el.className || "").toLowerCase();
-      const marker = id + " " + className;
-
-      if (!marker.includes("note")) continue;
-      if (marker.includes("notebook")) continue;
-
-      const text = getElementText(el);
-
-      if (isUsefulNoteText(text)) {
-        return text;
-      }
-    }
-
+  
     return "";
   }
 
@@ -924,6 +1044,7 @@
   }
 
   function renderVillageNotes(noteText) {
+    ui.notes.style.display = "";
     ui.notes.innerHTML = "";
   
     const box = document.createElement("div");
@@ -1033,7 +1154,7 @@
     style.textContent = `
       #twactics-snipe-helper {
         display: block;
-        width: auto;
+        width: 100%;
         max-width: 100%;
         box-sizing: border-box;
         margin: 8px 0 0 0;
@@ -1310,10 +1431,22 @@
         text-align: right;
       }
 
+      #command-data-form > div > table.vis:first-child {
+        width: 60% !important;
+        max-width: 60% !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+      }
+      
+      #date_arrival {
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+
       @media (max-width: 700px) {
         #twactics-snipe-helper {
           display: block;
-          width: auto !important;
+          width: 100% !important;
           max-width: 100% !important;
           box-sizing: border-box !important;
           overflow: visible !important;
@@ -1495,20 +1628,13 @@
           font-weight: bold;
         }
       
-        /* ---- KNAPPAR ---- */
-        .twsh-buttons {
-          display: flex;
-          flex-direction: row;
-          gap: 4px;
-          margin-top: 0;
-        }
-      
+        /* ---- KNAPPAR ---- */    
         .twsh-buttons {
           display: flex;
           flex-direction: row;
           flex-wrap: nowrap;
           gap: 4px;
-          margin-top: 0;
+          margin-top: 6px;
           width: 100%;
           max-width: 100%;
           min-width: 0;
@@ -1638,7 +1764,7 @@
       
         /* ---- TRIBALWARS EGNA COMMAND-TABLE LITE BRED/RYMLIGARE ---- */
         .vis {
-        width: 100% !important;
+        width: 90% !important;
         }
         
         #command-data-form {
@@ -1647,8 +1773,10 @@
         }
       
         #command-data-form > div > table.vis:first-child {
-          width: 100% !important;
-          max-width: 100% !important;
+          width: 90% !important;
+          max-width: 90% !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
           table-layout: fixed;
         }
       
@@ -1662,10 +1790,6 @@
         }
       
         #date_arrival {
-          width: 100% !important;
-        }
-      
-        #twactics-snipe-helper {
           width: 100% !important;
         }
         
@@ -1946,6 +2070,8 @@
     ui.countdown = countdown;
     ui.status = status;
     ui.notes = notes;
+    ui.loadCommandsButton = loadCommandsButton;
+    ui.loadNotesButton = loadNotesButton;
 
     targetDate.addEventListener("input", function () {
       updateFromInputs(true);
@@ -1973,16 +2099,18 @@
     ui.offsetEnabled.checked = !!(settings && settings.offsetEnabled);
     ui.offsetWrap.style.display = ui.offsetEnabled.checked ? "" : "none";
 
-    if (settings && settings.remember && settings.date) {
-      ui.remember.checked = true;
-      ui.targetDate.value = settings.date;
-      ui.targetHour.value = pad(settings.hour || 0);
-      ui.targetMinute.value = pad(settings.minute || 0);
-      ui.targetSecond.value = pad(settings.second || 0);
-      ui.targetMs.value = String(settings.ms || 0);
+    const rememberedTarget = getRememberedTarget(settings);
 
+    if (rememberedTarget) {
+      ui.remember.checked = true;
+      ui.targetDate.value = rememberedTarget.date;
+      ui.targetHour.value = pad(rememberedTarget.hour || 0);
+      ui.targetMinute.value = pad(rememberedTarget.minute || 0);
+      ui.targetSecond.value = pad(rememberedTarget.second || 0);
+      ui.targetMs.value = String(rememberedTarget.ms || 0);
+    
       updateFromInputs(false);
-      setStatus("Remembered target time loaded and recalculated.", "success");
+      setStatus("Remembered target time loaded for this destination.", "success");
       return;
     }
 
@@ -2005,6 +2133,55 @@
     const now = getServerNowMs();
     setInputsFromMs(now);
     updateFromInputs(false);
+  }
+
+  function playBeepSequence(count) {
+  let audioContext;
+
+  try {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  } catch (e) {
+    console.warn(SCRIPT_NAME + " could not create audio context:", e);
+    return;
+  }
+
+  for (let i = 0; i < count; i++) {
+    const start = audioContext.currentTime + i * 0.14;
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(880, start);
+
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.18, start + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.09);
+
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+
+    oscillator.start(start);
+    oscillator.stop(start + 0.1);
+  }
+}
+
+  function checkAlarms(remaining) {
+    if (remaining <= 0 || !isFinite(remaining)) return;
+  
+    if (remaining <= 60000 && !app.alarm60Played) {
+      app.alarm60Played = true;
+      playBeepSequence(3);
+    }
+  
+    if (remaining <= 30000 && !app.alarm30Played) {
+      app.alarm30Played = true;
+      playBeepSequence(5);
+    }
+  }
+  
+  function resetAlarms() {
+    app.alarm60Played = false;
+    app.alarm30Played = false;
   }
 
   function startScript() {
@@ -2087,6 +2264,10 @@
     if (externalCommands) externalCommands.remove();
 
     document.title = app.originalTitle;
+
+    app.commandsVisible = false;
+    app.notesVisible = false;
+    resetAlarms();
 
     app.started = false;
   }
