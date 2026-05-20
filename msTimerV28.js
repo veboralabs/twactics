@@ -1,4 +1,7 @@
 /*
+ * Copyright (c) 2026 Twactics
+ * License: MIT
+ *
  * Twactics Snipe Helper
  *
  * Landing-time helper for Tribal Wars command confirmation pages.
@@ -25,7 +28,6 @@
   const app = {
     started: false,
     interval: null,
-    observer: null,
     originalTitle: document.title,
     clockOffset: 0,
     duration: 0,
@@ -1674,11 +1676,6 @@
         opacity: 0.8;
       }
 
-      .twsh-footer a {
-        color: #2f1b00;
-        text-decoration: underline;
-      }
-
       .twsh-external-commands {
         margin-top: 8px;
         padding: 8px;
@@ -2394,25 +2391,14 @@
 
     const footer = document.createElement("div");
     footer.className = "twsh-footer";
-
-    const feedbackLink = document.createElement("a");
-    feedbackLink.href = "https://twactics.com/scripts/snipe-helper";
-    feedbackLink.target = "_blank";
-    feedbackLink.rel = "noopener noreferrer";
-    feedbackLink.textContent = "Send feedback";
-
+    
+    const feedbackText = document.createElement("span");
+    feedbackText.textContent = "Feedback via Script Library";
+    
     const createdBy = document.createElement("div");
-
-    const twacticsLink = document.createElement("a");
-    twacticsLink.href = "https://twactics.com";
-    twacticsLink.target = "_blank";
-    twacticsLink.rel = "noopener noreferrer";
-    twacticsLink.textContent = "Twactics";
-
-    createdBy.appendChild(document.createTextNode("Created by "));
-    createdBy.appendChild(twacticsLink);
-
-    footer.appendChild(feedbackLink);
+    createdBy.textContent = "Created by Twactics";
+    
+    footer.appendChild(feedbackText);
     footer.appendChild(createdBy);
 
     root.appendChild(title);
@@ -2601,20 +2587,6 @@
 
     app.interval = setInterval(updateLoop, 1000 / CONFIG.fps);
 
-    const sendButton = document.getElementById("troop_confirm_submit");
-
-    if (sendButton) {
-      sendButton.addEventListener("click", function () {
-        console.log("sent at", Math.round(getServerNowMs()) % 1000, "ms");
-        saveSettings();
-
-        if (app.interval) {
-          clearInterval(app.interval);
-          app.interval = null;
-        }
-      });
-    }
-
     setStatus("", "");
   }
 
@@ -2623,30 +2595,14 @@
       startScript();
       return;
     }
-
-    const target = document.getElementById("ds_body") || document.body;
-
-    app.observer = new MutationObserver(function () {
-      if (document.getElementById("date_arrival") && document.getElementById("command-data-form")) {
-        startScript();
-      }
-    });
-
-    app.observer.observe(target, {
-      childList: true,
-      subtree: true
-    });
+  
+    console.log(SCRIPT_NAME + ": command confirmation form not found.");
   }
 
   function destroy() {
     if (app.interval) {
       clearInterval(app.interval);
       app.interval = null;
-    }
-
-    if (app.observer) {
-      app.observer.disconnect();
-      app.observer = null;
     }
 
     const root = document.getElementById("twactics-snipe-helper");
