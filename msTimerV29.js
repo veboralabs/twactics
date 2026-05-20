@@ -37,7 +37,9 @@
     notesVisible: false,
     alarm60Played: false,
     alarm30Played: false,
-    barState: null
+    barState: null,
+    commandCountdownCells: [],
+    lastCommandCountdownUpdate: 0
   };
 
   const ui = {};
@@ -227,6 +229,47 @@
     return pad(hours) + ":" + pad(minutes) + ":" + pad(seconds);
   }
 
+  function getCommandSendMsFromArrival(arrivalMs) {
+    return arrivalMs + getActiveOffsetMs() - app.duration;
+  }
+
+  function updateCommandCountdownCell(cell, now) {
+    if (!cell) return;
+  
+    const arrivalMs = parseInt(cell.dataset.arrivalMs || "", 10);
+  
+    if (isNaN(arrivalMs)) {
+      cell.textContent = "--:--:--";
+      return;
+    }  
+
+    const sendMs = getCommandSendMsFromArrival(arrivalMs);
+    const remaining = sendMs - now;
+  
+    cell.textContent = formatDuration(remaining);
+    cell.className =
+      remaining > 0
+        ? "twsh-command-countdown"
+        : "twsh-command-countdown twsh-countdown-late";
+  }
+
+  function updateCommandCountdowns(now) {
+    if (!app.commandCountdownCells || !app.commandCountdownCells.length) return;
+  
+    // Texten visar sekunder, så vi behöver inte uppdatera 50 gånger per sekund.
+    if (now - app.lastCommandCountdownUpdate < 250) return;
+  
+    app.lastCommandCountdownUpdate = now;
+  
+    app.commandCountdownCells = app.commandCountdownCells.filter(function (cell) {
+      return document.body.contains(cell);
+    });
+  
+    app.commandCountdownCells.forEach(function (cell) {
+      updateCommandCountdownCell(cell, now);
+    });
+  }
+
   function loadSettings() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -404,6 +447,7 @@
 
   function updateLoop() {
     const now = getServerNowMs();
+    updateCommandCountdowns(now);
     const currentMs = ((now % 1000) + 1000) % 1000;
     
     const goalMs =
@@ -508,66 +552,7 @@
 
     return null;
   }
-
-  function getCommandIdFromRow(row) {
-    const link = row.querySelector("a[href*='info_command'][href*='id='], a[href*='ajax=details'][href*='id=']");
-    if (link) {
-      return getParam("id", link.href);
-    }
-  
-    const dataIdEl = row.querySelector("[data-id]");
-    if (dataIdEl) {
-      return dataIdEl.getAttribute("data-id");
-    }
-  
-    const html = row.innerHTML || "";
-    const match = html.match(/info_command[^"']*id=(\d+)/) || html.match(/data-id=["']?(\d+)/);
-  
-    return match ? match[1] : null;
-  }
-
-  function getCommandDetailsUrl(commandId) {
-    if (!commandId) return null;
-  
-    const base =
-      typeof game_data !== "undefined" && game_data.link_base_pure
-        ? game_data.link_base_pure
-        : "/game.php?";
-  
-    return base + "info_command&ajax=details&id=" + commandId;
-  }
-
-  function formatCommandDetails(details) {
-    if (!details || !details.units) return "";
-  
-    const units = [];
-  
-    Object.keys(details.units).forEach(function (unitName) {
-      const unit = details.units[unitName];
-      const count = parseInt(unit.count || "0", 10);
-  
-      if (count > 0) {
-        units.push(unitName + ": " + count);
-      }
-    });
-  
-    const parts = [];
-  
-    if (details.start_comment) {
-      parts.push(details.start_comment);
-    }
-  
-    if (units.length) {
-      parts.push(units.join(", "));
-    }
-  
-    if (details.catapult_target && details.catapult_target.name) {
-      parts.push("Target: " + details.catapult_target.name);
-    }
-  
-    return parts.join(" | ");
-  }
-
+    
   function loadTargetCommands() {
     if (app.commandsVisible) {
       hideTargetCommands();
@@ -707,9 +692,22 @@
     return body;
   }
 
+  function refreshNativeTooltips(container) {
+    try {
+      if (typeof UI !== "undefined" && typeof UI.ToolTip === "function") {
+        UI.ToolTip($(container).find("[data-title], .tooltip"));
+      }
+    } catch (err) {
+      console.warn(SCRIPT_NAME + " could not refresh native tooltips:", err);
+    }
+  }
+
   function renderTargetCommands(html) {
     const commandsBody = ensureExternalCommandsHost();
     commandsBody.innerHTML = "";
+
+    app.commandCountdownCells = [];
+    app.lastCommandCountdownUpdate = 0;
 
     const wrapper = document.createElement("div");
     wrapper.innerHTML = html;
@@ -766,10 +764,6 @@
       if (!arrivalMs) return;
 
       const commandName = cleanText(cells[0] ? cells[0].textContent : "Command");
-      const effectiveArrivalMs = arrivalMs + getActiveOffsetMs();
-      const sendMs = effectiveArrivalMs - app.duration;
-      const sendIn = sendMs - getServerNowMs();
-      const commandId = getCommandIdFromRow(row);
       
       const tr = document.createElement("tr");
       
@@ -777,40 +771,22 @@
       commandCell.className = "twsh-native-command-cell";
       
       if (cells[0]) {
-        const nativeCommandContent = cells[0].cloneNode(true);
-        commandCell.appendChild(nativeCommandContent);
+        Array.from(cells[0].childNodes).forEach(function (node) {
+          commandCell.appendChild(node.cloneNode(true));
+        });
       } else {
         commandCell.textContent = commandName || "Command";
-      }
-      
-      if (commandId) {
-        commandCell.title = "Loading command details...";
-      
-        const detailsUrl = getCommandDetailsUrl(commandId);
-      
-        $.get(detailsUrl)
-          .done(function (details) {
-            const detailText =
-              typeof details === "string"
-                ? details
-                : formatCommandDetails(details);
-      
-            if (detailText) {
-              commandCell.title = detailText;
-            } else {
-              commandCell.title = "No command details found.";
-            }
-          })
-          .fail(function () {
-            commandCell.title = "Could not load command details.";
-          });
       }
       
       const arrivalOutCell = document.createElement("td");
       arrivalOutCell.textContent = formatDateTime(arrivalMs, true);
 
       const sendInCell = document.createElement("td");
-      sendInCell.textContent = formatDuration(sendIn);
+      sendInCell.className = "twsh-command-countdown";
+      sendInCell.dataset.arrivalMs = String(arrivalMs);
+      
+      updateCommandCountdownCell(sendInCell, getServerNowMs());
+      app.commandCountdownCells.push(sendInCell);
 
       const actionCell = document.createElement("td");
 
@@ -835,7 +811,9 @@
 
     resultTable.appendChild(tbody);
     commandsBody.appendChild(resultTable);
-
+    
+    refreshNativeTooltips(resultTable);
+    
     setStatus("Loaded " + tbody.children.length + " command(s).", "success");
 
     const externalBox = document.getElementById("twactics-snipe-helper-commands");
@@ -1801,6 +1779,11 @@
       .twsh-native-command-cell a {
         color: #2f1b00;
       }
+      
+      .twsh-command-countdown {
+        font-weight: bold;
+        white-space: nowrap;
+      }
 
       @media (max-width: 700px) {
         #twactics-snipe-helper {
@@ -2615,8 +2598,10 @@
 
     app.commandsVisible = false;
     app.notesVisible = false;
+    app.commandCountdownCells = [];
+    app.lastCommandCountdownUpdate = 0;
     resetAlarms();
-
+    
     app.started = false;
   }
 
