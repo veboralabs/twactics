@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Twactics
  * License: MIT
  *
- * Twactics Snipe Helper
+ * Twactics MS Timer
  *
  * Landing-time helper for Tribal Wars command confirmation pages.
  * No auto-send, no auto-click, no automatic troop action.
