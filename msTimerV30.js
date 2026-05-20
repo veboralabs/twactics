@@ -692,13 +692,32 @@
     return body;
   }
 
-  function refreshNativeTooltips(container) {
+  function refreshNativeCommandUi(container) {
     try {
+      const $container = $(container);
+  
+      /*
+       * Vanliga TribalWars tooltips, men exkludera command_hover_details.
+       * command_hover_details ska hanteras av Command.init(), inte UI.ToolTip().
+       */
       if (typeof UI !== "undefined" && typeof UI.ToolTip === "function") {
-        UI.ToolTip($(container).find("[data-title], .tooltip"));
+        UI.ToolTip(
+          $container
+            .find("[data-title], .tooltip")
+            .not(".command_hover_details")
+        );
+      }
+  
+      /*
+       * Initierar TribalWars egna command-hover.
+       * Detta behövs eftersom HTML:en kommer från $.get() och script-taggarna
+       * från info_village-sidan inte körs automatiskt.
+       */
+      if (typeof Command !== "undefined" && typeof Command.init === "function") {
+        Command.init();
       }
     } catch (err) {
-      console.warn(SCRIPT_NAME + " could not refresh native tooltips:", err);
+      console.warn(SCRIPT_NAME + " could not refresh native command UI:", err);
     }
   }
 
@@ -812,7 +831,7 @@
     resultTable.appendChild(tbody);
     commandsBody.appendChild(resultTable);
     
-    refreshNativeTooltips(resultTable);
+    refreshNativeCommandUi(resultTable);
     
     setStatus("Loaded " + tbody.children.length + " command(s).", "success");
 
