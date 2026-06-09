@@ -1395,4 +1395,4 @@
   createDialog();
 
   console.log(SCRIPT_NAME + " " + SCRIPT_VERSION + " loaded");
-})();
+}();
