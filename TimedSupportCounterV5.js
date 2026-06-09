@@ -726,45 +726,46 @@
           console.warn(SCRIPT_NAME + " failed to load support details:", failedInfo, err);
         }
       }
-    } finally {
-      ui.calculateManualButton.disabled = false;
-      ui.scanButton.disabled = false;
-
-      if (ui.calculateSelectedAttackButton) {
-      ui.calculateSelectedAttackButton.disabled = false;
-    }
-
-    if (failedDetails.length) {
-      console.groupCollapsed(
-        SCRIPT_NAME + " failed support details (" + failedDetails.length + ")"
-      );
-      console.table(failedDetails);
-      failedDetails.forEach(function (item) {
-        console.warn(item);
-      });
-      console.groupEnd();
-    }
-
-    renderResults({
-      cutoffMs: cutoffMs,
-      cutoffLabel: cutoffLabel,
-      scannedSupports: matchingSupports.length,
-      countedSupports: countedSupports,
-      failed: failed,
-      skipped: skipped,
-      totals: totals,
-      rows: rows
-    });
-
-    setStatus(
-      "Done. Counted " +
-        countedSupports +
-        " support command(s). Failed: " +
-        failed +
-        ".",
-      failed ? "warn" : "success"
-    );
-  }
+        } finally {
+          ui.calculateManualButton.disabled = false;
+          ui.scanButton.disabled = false;
+    
+          if (ui.calculateSelectedAttackButton) {
+            ui.calculateSelectedAttackButton.disabled = false;
+          }
+        }
+    
+        if (failedDetails.length) {
+          console.groupCollapsed(
+            SCRIPT_NAME + " failed support details (" + failedDetails.length + ")"
+          );
+          console.table(failedDetails);
+          failedDetails.forEach(function (item) {
+            console.warn(item);
+          });
+          console.groupEnd();
+        }
+    
+        renderResults({
+          cutoffMs: cutoffMs,
+          cutoffLabel: cutoffLabel,
+          scannedSupports: matchingSupports.length,
+          countedSupports: countedSupports,
+          failed: failed,
+          skipped: skipped,
+          totals: totals,
+          rows: rows
+        });
+    
+        setStatus(
+          "Done. Counted " +
+            countedSupports +
+            " support command(s). Failed: " +
+            failed +
+            ".",
+          failed ? "warn" : "success"
+        );
+      }
 
   function clearResults() {
     ui.results.innerHTML = "";
