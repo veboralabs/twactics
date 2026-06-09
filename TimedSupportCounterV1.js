@@ -1,9 +1,34 @@
 /*
+ * Copyright (c) 2026 Twactics
+ * License: MIT
+ *
  * Twactics Support Counter
  *
  * Calculates incoming support before a selected time or before a selected incoming attack.
- * No auto-send, no auto-click, no troop action.
- * Details are only fetched after the user clicks calculate.
+ *
+ * This script:
+ * - Reads visible incoming commands on the current village page
+ * - Fetches command details only after a manual user click
+ * - Summarizes incoming support units and population
+ *
+ * This script does NOT:
+ * - Auto-send commands
+ * - Auto-click buttons
+ * - Automatically move troops
+ * - Perform troop actions without user interaction
+ * - Use external servers or external files
+ *
+ * MIT License:
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this script, to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the script, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the script.
+ *
+ * THE SCRIPT IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
  */
 
 (function () {
