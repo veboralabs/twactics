@@ -90,8 +90,10 @@
     commands: [],
     supports: [],
     attacks: [],
+    selectedAttack: null,
     cutoffMs: null,
-    cutoffLabel: ""
+    cutoffLabel: "",
+    boundIncomingContainer: null
   };
 
   const ui = {};
@@ -101,12 +103,21 @@
   };
 
   function destroy() {
+    if (state.boundIncomingContainer) {
+      state.boundIncomingContainer.removeEventListener("click", handleIncomingRowClick, true);
+      state.boundIncomingContainer = null;
+    }
+  
+    document.querySelectorAll(".twsc-selected-attack").forEach(function (row) {
+      row.classList.remove("twsc-selected-attack");
+    });
+  
     const box = document.getElementById(BOX_ID);
     if (box) box.remove();
-
+  
     const style = document.getElementById(STYLE_ID);
     if (style) style.remove();
-
+  
     delete window.twacticsSupportCounter;
   }
 
@@ -365,25 +376,24 @@
     state.commands = commands;
     state.supports = commands.filter(command => command.type === "support");
     state.attacks = commands.filter(command => command.type === "attack");
-
+    
+    bindIncomingRowSelection();
+    
     setStatus(
       "Found " +
         state.supports.length +
         " support command(s) and " +
         state.attacks.length +
-        " attack command(s).",
+        " attack command(s). Click an attack row in the Tribal Wars table to select cutoff.",
       "success"
     );
-
+    
     if (state.attacks.length) {
-      state.cutoffMs = state.attacks[0].arrivalMs;
-      state.cutoffLabel = "First visible attack";
       fillManualInputsFromMs(state.attacks[0].arrivalMs);
-      updateSelectedCutoffText();
     } else {
       const dateParts = getServerDateParts();
       const now = new Date();
-
+    
       fillManualInputsFromMs(
         new Date(
           dateParts.year,
@@ -396,9 +406,88 @@
         ).getTime()
       );
     }
-
+    
     renderAttackList();
     clearResults();
+  }
+
+  function bindIncomingRowSelection() {
+    const container = document.getElementById("commands_incomings");
+  
+    if (!container) return;
+  
+    if (state.boundIncomingContainer === container) return;
+  
+    if (state.boundIncomingContainer) {
+      state.boundIncomingContainer.removeEventListener("click", handleIncomingRowClick, true);
+    }
+  
+    state.boundIncomingContainer = container;
+    container.addEventListener("click", handleIncomingRowClick, true);
+  }
+  
+  function handleIncomingRowClick(event) {
+    const row = event.target.closest("tr.command-row");
+  
+    if (!row) return;
+  
+    const container = document.getElementById("commands_incomings");
+    if (!container || !container.contains(row)) return;
+  
+    const type = getCommandType(row);
+  
+    if (type !== "attack") return;
+  
+    event.preventDefault();
+    event.stopPropagation();
+  
+    const id = getCommandId(row);
+    const attack =
+      state.attacks.find(function (item) {
+        return item.id === id;
+      }) || {
+        id: id,
+        type: "attack",
+        arrivalMs: getArrivalMsFromRow(row),
+        label: getCommandLabel(row),
+        row: row
+      };
+  
+    selectAttackCutoff(attack);
+  }
+  
+  function selectAttackCutoff(attack) {
+    if (!attack || !attack.arrivalMs) {
+      setStatus("Could not read selected attack time.", "error");
+      return;
+    }
+  
+    document.querySelectorAll(".twsc-selected-attack").forEach(function (row) {
+      row.classList.remove("twsc-selected-attack");
+    });
+  
+    if (attack.row) {
+      attack.row.classList.add("twsc-selected-attack");
+    }
+  
+    state.selectedAttack = attack;
+    state.cutoffMs = attack.arrivalMs;
+    state.cutoffLabel = "Selected attack";
+  
+    fillManualInputsFromMs(attack.arrivalMs);
+    updateSelectedCutoffText();
+    clearResults();
+    
+    setStatus("Selected attack as cutoff. Click Calculate selected attack to load support.", "success");
+  }
+  
+  function calculateSelectedAttackCutoff() {
+    if (!state.selectedAttack || !state.selectedAttack.arrivalMs) {
+      setStatus("Click an incoming attack row first.", "warn");
+      return;
+    }
+  
+    calculateSupportBeforeCutoff(state.selectedAttack.arrivalMs, "Selected attack");
   }
 
   function updateSelectedCutoffText() {
@@ -434,27 +523,61 @@
   }
 
   async function fetchCommandDetails(commandId) {
-    const url = buildCommandDetailsUrl(commandId);
-
-    const response = await fetch(url, {
-      method: "GET",
-      credentials: "same-origin",
-      headers: {
-        "Accept": "application/json, text/javascript, */*; q=0.01"
+      const url = buildCommandDetailsUrl(commandId);
+  
+      const response = await fetch(url, {
+        method: "GET",
+        credentials: "same-origin",
+        headers: {
+          "Accept": "application/json, text/javascript, */*; q=0.01"
+        }
+      });
+  
+      if (!response.ok) {
+        throw new Error("HTTP " + response.status);
       }
+  
+      const text = await response.text();
+  
+      try {
+        return JSON.parse(text);
+      } catch (err) {
+        throw new Error("Could not parse JSON response");
+      }
+    }
+  
+    function sleep(ms) {
+    return new Promise(function (resolve) {
+      setTimeout(resolve, ms);
     });
+  }
 
-    if (!response.ok) {
-      throw new Error("HTTP " + response.status);
+  async function fetchCommandDetailsWithRetry(commandId) {
+    let lastError = null;
+  
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        if (attempt > 1) {
+          await sleep(250 * attempt);
+        }
+  
+        return await fetchCommandDetails(commandId);
+      } catch (err) {
+        lastError = err;
+  
+        console.warn(
+          SCRIPT_NAME + " command detail attempt failed:",
+          {
+            id: commandId,
+            attempt: attempt,
+            reason: err && err.message ? err.message : String(err),
+            url: buildCommandDetailsUrl(commandId)
+          }
+        );
+      }
     }
-
-    const text = await response.text();
-
-    try {
-      return JSON.parse(text);
-    } catch (err) {
-      throw new Error("Could not parse JSON response");
-    }
+  
+    throw lastError;
   }
 
   function getArrivalMsFromDetails(details) {
@@ -545,9 +668,14 @@
     let failed = 0;
     let skipped = 0;
     let countedSupports = 0;
+    const failedDetails = [];
 
     ui.calculateManualButton.disabled = true;
     ui.scanButton.disabled = true;
+
+    if (ui.calculateSelectedAttackButton) {
+      ui.calculateSelectedAttackButton.disabled = true;
+    }
 
     try {
       for (let i = 0; i < matchingSupports.length; i++) {
@@ -563,7 +691,7 @@
         );
 
         try {
-          const details = await fetchCommandDetails(command.id);
+          const details = await fetchCommandDetailsWithRetry(command.id);
 
           const detailArrivalMs = getArrivalMsFromDetails(details) || command.arrivalMs;
 
@@ -584,12 +712,37 @@
           countedSupports++;
         } catch (err) {
           failed++;
-          console.warn(SCRIPT_NAME + " failed to load command " + command.id, err);
+        
+          const failedInfo = {
+            id: command.id,
+            label: command.label,
+            arrival: formatDateTime(command.arrivalMs),
+            url: buildCommandDetailsUrl(command.id),
+            reason: err && err.message ? err.message : String(err)
+          };
+        
+          failedDetails.push(failedInfo);
+        
+          console.warn(SCRIPT_NAME + " failed to load support details:", failedInfo, err);
         }
       }
     } finally {
       ui.calculateManualButton.disabled = false;
       ui.scanButton.disabled = false;
+
+      if (ui.calculateSelectedAttackButton) {
+      ui.calculateSelectedAttackButton.disabled = false;
+    }
+
+    if (failedDetails.length) {
+      console.groupCollapsed(
+        SCRIPT_NAME + " failed support details (" + failedDetails.length + ")"
+      );
+      console.table(failedDetails);
+      failedDetails.forEach(function (item) {
+        console.warn(item);
+      });
+      console.groupEnd();
     }
 
     renderResults({
@@ -706,56 +859,60 @@
 
   function renderDetailsTable(rows, container) {
     if (!rows.length) return;
-
-    const title = document.createElement("div");
-    title.className = "twsc-section-title";
-    title.textContent = "Counted support commands";
-    container.appendChild(title);
-
+  
+    const details = document.createElement("details");
+    details.className = "twsc-details-collapsed";
+  
+    const summary = document.createElement("summary");
+    summary.textContent = "Show counted support commands (" + rows.length + ")";
+    details.appendChild(summary);
+  
     const wrap = document.createElement("div");
     wrap.className = "twsc-table-wrap";
-
+  
     const table = document.createElement("table");
     table.className = "twsc-table";
-
+  
     const thead = document.createElement("thead");
     const headRow = document.createElement("tr");
-
+  
     ["Arrival", "Command", "Main units"].forEach(text => {
       const th = document.createElement("th");
       th.textContent = text;
       headRow.appendChild(th);
     });
-
+  
     thead.appendChild(headRow);
     table.appendChild(thead);
-
+  
     const tbody = document.createElement("tbody");
-
+  
     rows.forEach(item => {
       const row = document.createElement("tr");
-
+  
       const arrivalCell = document.createElement("td");
       arrivalCell.textContent = formatDateTime(item.arrivalMs);
-
+  
       const labelCell = document.createElement("td");
       labelCell.className = "twsc-left";
       labelCell.textContent = item.label;
-
+  
       const unitsCell = document.createElement("td");
       unitsCell.className = "twsc-left";
       unitsCell.textContent = formatMainUnits(item.units);
-
+  
       row.appendChild(arrivalCell);
       row.appendChild(labelCell);
       row.appendChild(unitsCell);
-
+  
       tbody.appendChild(row);
     });
-
+  
     table.appendChild(tbody);
     wrap.appendChild(table);
-    container.appendChild(wrap);
+    details.appendChild(wrap);
+  
+    container.appendChild(details);
   }
 
   function formatMainUnits(units) {
@@ -775,65 +932,18 @@
 
   function renderAttackList() {
     ui.attackList.innerHTML = "";
-
+  
+    const info = document.createElement("div");
+    info.className = "twsc-small";
+  
     if (!state.attacks.length) {
-      const empty = document.createElement("div");
-      empty.className = "twsc-small";
-      empty.textContent = "No visible incoming attacks found.";
-      ui.attackList.appendChild(empty);
-      return;
+      info.textContent = "No visible incoming attacks found.";
+    } else {
+      info.textContent =
+        "Click an attack row directly in the Tribal Wars incoming table to select it as cutoff. The selected attack will be highlighted yellow.";
     }
-
-    const table = document.createElement("table");
-    table.className = "twsc-table";
-
-    const thead = document.createElement("thead");
-    const headRow = document.createElement("tr");
-
-    ["Arrival", "Attack", "Action"].forEach(text => {
-      const th = document.createElement("th");
-      th.textContent = text;
-      headRow.appendChild(th);
-    });
-
-    thead.appendChild(headRow);
-    table.appendChild(thead);
-
-    const tbody = document.createElement("tbody");
-
-    state.attacks.forEach((attack, index) => {
-      const row = document.createElement("tr");
-
-      const arrivalCell = document.createElement("td");
-      arrivalCell.textContent = formatDateTime(attack.arrivalMs);
-
-      const labelCell = document.createElement("td");
-      labelCell.className = "twsc-left";
-      labelCell.textContent = attack.label;
-
-      const actionCell = document.createElement("td");
-
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "btn";
-      button.textContent = "Calculate before";
-      button.addEventListener("click", function () {
-        const label = "Attack #" + (index + 1);
-        fillManualInputsFromMs(attack.arrivalMs);
-        calculateSupportBeforeCutoff(attack.arrivalMs, label);
-      });
-
-      actionCell.appendChild(button);
-
-      row.appendChild(arrivalCell);
-      row.appendChild(labelCell);
-      row.appendChild(actionCell);
-
-      tbody.appendChild(row);
-    });
-
-    table.appendChild(tbody);
-    ui.attackList.appendChild(table);
+  
+    ui.attackList.appendChild(info);
   }
 
   function escapeHtml(value) {
@@ -971,6 +1081,23 @@
         border: 1px solid #bd9c5a;
         border-radius: 4px;
         font-weight: bold;
+      }
+
+      .twsc-selected-attack td {
+        background: #ffe563 !important;
+      }
+      
+      .twsc-details-collapsed {
+        margin-top: 12px;
+      }
+      
+      .twsc-details-collapsed summary {
+        cursor: pointer;
+        font-weight: bold;
+        padding: 6px;
+        background: #fff4d5;
+        border: 1px solid #bd9c5a;
+        border-radius: 4px;
       }
 
       .twsc-section-title {
@@ -1200,9 +1327,16 @@
     scanButton.textContent = "Rescan incomings";
     scanButton.addEventListener("click", scanIncomingCommands);
 
+    const calculateSelectedAttackButton = document.createElement("button");
+    calculateSelectedAttackButton.type = "button";
+    calculateSelectedAttackButton.className = "btn";
+    calculateSelectedAttackButton.textContent = "Calculate selected attack";
+    calculateSelectedAttackButton.addEventListener("click", calculateSelectedAttackCutoff);
+
     const scanButtons = document.createElement("div");
     scanButtons.className = "twsc-buttons";
     scanButtons.appendChild(scanButton);
+    scanButtons.appendChild(calculateSelectedAttackButton);
 
     scanPanel.appendChild(scanTitle);
     scanPanel.appendChild(scanHelp);
@@ -1250,6 +1384,7 @@
     ui.attackList = attackList;
     ui.results = results;
     ui.scanButton = scanButton;
+    ui.calculateSelectedAttackButton = calculateSelectedAttackButton;
     ui.calculateManualButton = calculateManualButton;
 
     makeDraggable(box, header);
