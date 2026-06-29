@@ -1523,23 +1523,23 @@
         margin-bottom: 8px;
       }
 
-      .twsh-bar {
+            .twsh-bar {
         height: 100%;
         width: 0%;
-        background: green;
+        background: #006400;
         will-change: width;
+      }
+      
+      .twsh-bar-ready {
+        background: #006400;
+      }
+      
+      .twsh-bar-no-date {
+        background: #006400;
       }
             
       .twsh-bar-waiting {
         background: #ff9933;
-      }
-      
-      .twsh-bar-ready {
-        background: green;
-      }
-      
-      .twsh-bar-no-date {
-        background: green;
       }
 
       .twsh-current-time {
