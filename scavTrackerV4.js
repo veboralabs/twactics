@@ -431,9 +431,10 @@ function extractVillageData(html) {
             uniqueVillages.set(String(key), village);
         }
 
-        const output = Array.from(uniqueVillages.values())
-            .map(getVillageLine)
-            .join("\n");
+        const output = "/scav update data:" +
+            Array.from(uniqueVillages.values())
+                .map(getVillageLine)
+                .join(" ; ");
 
         await copyToClipboard(output);
 
