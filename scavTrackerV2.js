@@ -398,8 +398,6 @@ function extractVillageData(html) {
     }
 
     try {
-        showMessage(`${SCRIPT_NAME}: Hämtar scavenging-tider...`, "info");
-
         const firstPageHtml = await $.get(`${baseUrl}&page=0`);
         const amountOfPages = getAmountOfPages(firstPageHtml);
 
