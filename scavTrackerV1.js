@@ -91,45 +91,174 @@
         return matches;
     }
 
-    function extractVillageData(html) {
-        const jsonObjects = extractJsonObjects(html);
+    function extractBalancedValue(source, startIndex) {
+    const openingCharacter = source[startIndex];
 
-        /*
-         * I originalscriptet ligger byinformationen normalt som
-         * det tredje matchande JSON-objektet.
-         */
-        if (jsonObjects[2]) {
-            try {
-                const parsed = JSON.parse(jsonObjects[2]);
+    const closingCharacter = openingCharacter === "{"
+        ? "}"
+        : openingCharacter === "["
+            ? "]"
+            : null;
 
-                if (Array.isArray(parsed)) {
-                    return parsed;
-                }
-            } catch (error) {
-                console.warn("Could not parse expected village data:", error);
+    if (!closingCharacter) {
+        throw new Error("JSON data did not begin with { or [.");
+    }
+
+    let depth = 0;
+    let insideString = false;
+    let escaped = false;
+
+    for (let index = startIndex; index < source.length; index++) {
+        const character = source[index];
+
+        if (insideString) {
+            if (escaped) {
+                escaped = false;
+                continue;
             }
+
+            if (character === "\\") {
+                escaped = true;
+                continue;
+            }
+
+            if (character === '"') {
+                insideString = false;
+            }
+
+            continue;
         }
 
-        /*
-         * Fallback: kontrollera alla hittade objekt och leta efter
-         * en array som innehåller villages med options.
-         */
-        for (const jsonString of jsonObjects) {
-            try {
-                const parsed = JSON.parse(jsonString);
-
-                if (
-                    Array.isArray(parsed) &&
-                    parsed.some(item => item && item.options)
-                ) {
-                    return parsed;
-                }
-            } catch (error) {
-                // Objektet var inte den data vi letade efter.
-            }
+        if (character === '"') {
+            insideString = true;
+            continue;
         }
 
-        throw new Error("Could not identify the village scavenging data.");
+        if (character === openingCharacter) {
+            depth++;
+        } else if (character === closingCharacter) {
+            depth--;
+
+            if (depth === 0) {
+                return source.slice(startIndex, index + 1);
+            }
+        }
+    }
+
+    throw new Error("Could not find the end of the JSON data.");
+}
+
+function extractJsonValuesFromScript(source) {
+    const values = [];
+
+    for (let index = 0; index < source.length; index++) {
+        const character = source[index];
+
+        if (character !== "{" && character !== "[") {
+            continue;
+        }
+
+        try {
+            const jsonText = extractBalancedValue(source, index);
+            const parsed = JSON.parse(jsonText);
+
+            values.push(parsed);
+            index += jsonText.length - 1;
+        } catch (error) {
+            // This opening bracket was JavaScript rather than valid JSON.
+        }
+    }
+
+    return values;
+}
+
+function containsVillageData(value) {
+    if (!value) {
+        return false;
+    }
+
+    if (
+        Array.isArray(value) &&
+        value.some(item => item && typeof item === "object" && item.options)
+    ) {
+        return true;
+    }
+
+    if (typeof value === "object") {
+        const nestedValues = Object.values(value);
+
+        return nestedValues.some(nestedValue =>
+            containsVillageData(nestedValue)
+        );
+    }
+
+    return false;
+}
+
+function findVillageArray(value) {
+    if (!value) {
+        return null;
+    }
+
+    if (
+        Array.isArray(value) &&
+        value.some(item => item && typeof item === "object" && item.options)
+    ) {
+        return value;
+    }
+
+    if (typeof value === "object") {
+        for (const nestedValue of Object.values(value)) {
+            const result = findVillageArray(nestedValue);
+
+            if (result) {
+                return result;
+            }
+        }
+    }
+
+    return null;
+}
+
+function extractVillageData(html) {
+        const documentObject = new DOMParser().parseFromString(
+            html,
+            "text/html"
+        );
+    
+        const scripts = Array.from(
+            documentObject.querySelectorAll("script")
+        ).filter(script =>
+            script.textContent.includes("ScavengeMassScreen")
+        );
+    
+        if (scripts.length === 0) {
+            throw new Error(
+                "Could not find ScavengeMassScreen data on the page."
+            );
+        }
+    
+        for (const script of scripts) {
+            const parsedValues = extractJsonValuesFromScript(
+                script.textContent
+            );
+    
+            for (const parsedValue of parsedValues) {
+                if (!containsVillageData(parsedValue)) {
+                    continue;
+                }
+    
+                const villages = findVillageArray(parsedValue);
+    
+                if (villages) {
+                    return villages;
+                }
+            }
+        }
+    
+        throw new Error(
+            "Could not identify the village scavenging data."
+        );
     }
 
     function getAmountOfPages(html) {
@@ -208,18 +337,33 @@
     function getVillageLine(village) {
         const coordinates = getCoordinates(village);
         const options = village.options || {};
-
+    
         const results = [];
-
+    
         for (let level = 1; level <= 4; level++) {
-            const option =
-                options[level] ??
-                options[String(level)] ??
-                options[level - 1];
-
+            let option = null;
+    
+            if (Array.isArray(options)) {
+                option =
+                    options.find(item =>
+                        Number(
+                            item?.option_id ??
+                            item?.id ??
+                            item?.scavenging_option_id
+                        ) === level
+                    ) ??
+                    options[level - 1] ??
+                    null;
+            } else {
+                option =
+                    options[level] ??
+                    options[String(level)] ??
+                    null;
+            }
+    
             results.push(getOptionText(option));
         }
-
+    
         return `${coordinates}: ${results.join(" - ")}`;
     }
 
